@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Severity, FindingCategory } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -156,6 +157,28 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Findings per contract severity level (PR list FINDINGS column). */
+export const FindingCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type FindingCounts = z.infer<typeof FindingCounts>;
+
+/** A trimmed finding for the PR list's hover popover (rationale cut to 200 chars). */
+export const FindingPreview = z.object({
+  id: z.string(),
+  severity: Severity,
+  category: FindingCategory,
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  confidence: z.number(),
+  rationale: z.string(),
+});
+export type FindingPreview = z.infer<typeof FindingPreview>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -172,8 +195,14 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Cost (USD) of the latest finished run (list endpoint only; null = no data).
+  // Total cost (USD) of ALL the PR's finished (`done`) runs — every agent, every
+  // re-run. Runs without a cost are skipped. List endpoint only; null = no data.
   cost_usd: z.number().nullish(),
+  // Per-severity counts over the latest review of EACH agent (list endpoint only).
+  // null = never reviewed; all zeros = reviewed and clean.
+  finding_counts: FindingCounts.nullish(),
+  // Up to 5 of those findings for the hover popover, severity → confidence order.
+  findings_preview: z.array(FindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

@@ -5,9 +5,9 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -89,5 +89,56 @@ describe("RunHistory — run cost (M1)", () => {
   it("failed / running runs show no usage line", () => {
     renderRuns([run({ status: "failed", error: "429 quota" }), run({ run_id: "run-2", status: "running" })]);
     expect(screen.queryByTestId("run-usage")).not.toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — per-run findings popover (M1)", () => {
+  const finding = (id: string, severity: FindingRecord["severity"], title: string): FindingRecord => ({
+    id,
+    severity,
+    category: "perf",
+    title,
+    file: "src/api/users.ts",
+    start_line: 45,
+    end_line: 52,
+    rationale: "Loop issues one query per user.",
+    suggestion: null,
+    confidence: 0.86,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    review_id: "rv-1",
+    accepted_at: null,
+    dismissed_at: null,
+  });
+
+  function renderWithFindings(runs: RunSummary[], byRun: Map<string, FindingRecord[]>) {
+    return render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <RunHistory runs={runs} onOpenTrace={() => {}} findingsByRunId={byRun} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("shows severity counts and a popover with only this run's findings", () => {
+    const byRun = new Map([
+      ["run-1", [finding("f1", "WARNING", "N+1 query in user list endpoint"), finding("f2", "SUGGESTION", "Extract magic number 3600")]],
+      ["run-2", [finding("f3", "CRITICAL", "Other run's secret")]],
+    ]);
+    renderWithFindings(
+      [run({ run_id: "run-1", findings_count: 2 }), run({ run_id: "run-2", findings_count: 1, ran_at: "2026-06-11T17:00:00.000Z" })],
+      byRun,
+    );
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Findings: 0 critical, 1 warning, 1 suggestion" }));
+    const dialog = screen.getByRole("dialog", { name: "2 findings in this run" });
+    expect(dialog).toHaveTextContent("N+1 query in user list endpoint");
+    expect(dialog).toHaveTextContent("Extract magic number 3600");
+    expect(dialog).not.toHaveTextContent("Other run's secret");
+  });
+
+  it("falls back to the plain text when the run's review isn't loaded", () => {
+    renderWithFindings([run({ findings_count: 3 })], new Map());
+    expect(screen.getByText("3 finding(s)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Findings:/ })).not.toBeInTheDocument();
   });
 });

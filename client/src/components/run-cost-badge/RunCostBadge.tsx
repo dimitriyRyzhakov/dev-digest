@@ -11,18 +11,21 @@ export function RunCostBadge({
   tokensOut,
   variant = "compact",
   style,
+  title,
 }: {
   costUsd: number | null | undefined;
   tokensIn?: number | null;
   tokensOut?: number | null;
   variant?: "compact" | "full";
   style?: React.CSSProperties;
+  /** Tooltip override (e.g. the PR list's "total of finished runs"). Defaults to the exact USD. */
+  title?: string;
 }) {
   return (
     <span
       className="mono"
       data-testid="run-cost-badge"
-      title={badgeTitle(costUsd)}
+      title={title ?? badgeTitle(costUsd)}
       style={style ? { ...s.badge, ...style } : s.badge}
     >
       {badgeText(variant, costUsd, tokensIn, tokensOut)}

@@ -13,6 +13,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 ## Codebase Patterns
 <!-- conventions and architecture decisions, with the reason -->
 - 2026-11-20 — Building per-severity UI (counters, filters, legends) → iterate `Severity.options` from `@devdigest/shared` (3 levels), take only colours from `SEV`; NEVER iterate `SEV` keys, because `@devdigest/ui` `Severity`/`SEV` also has `INFO`, which the contract lacks, and both packages export the name `Severity`, so alias one on import (evidence: client/src/vendor/ui/primitives/tokens.ts#SEV, client/src/vendor/shared/contracts/findings.ts#Severity)
+- 2026-11-21 — Popover/tooltip inside a PR list row → portal it to `document.body` with `position: fixed` (the list's `s.tableCard` has `overflow: hidden` and clips absolute children), and ALWAYS `stopPropagation` on clicks inside the portal too: React synthetic events bubble along the React tree, so a portalled click still reaches `PRRow`'s `onClick` and navigates (evidence: client/src/components/findings-summary/FindingsSummary.tsx#stop, client/src/app/repos/[repoId]/pulls/styles.ts#tableCard)
 
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->

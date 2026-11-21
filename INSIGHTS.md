@@ -16,6 +16,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->
 - 2026-11-19 — Creating several new files in one Bash call (`mkdir -p` + multiple `cat > … <<EOF`) got rejected by Claude Code's removal safety check → use the Write tool per new file; Python heredoc string-replace edits of existing files pass fine (evidence: client/src/components/run-cost-badge/*)
+- 2026-11-21 — refines 2026-11-19 entry: a Python heredoc edit whose replacement text contains JS template literals (`${…}`) was also rejected by the removal safety check (nothing was deleted) → for TS/TSX edits containing `${…}`, use the Edit tool instead of a Bash heredoc (evidence: client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx#moreHref)
 
 ## Recurring Errors & Fixes
 <!-- error message → fix -->

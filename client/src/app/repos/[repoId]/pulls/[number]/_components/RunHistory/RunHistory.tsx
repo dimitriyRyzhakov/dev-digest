@@ -3,9 +3,11 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsSummary } from "@/components/findings-summary";
 import { formatTokenTotal } from "@/lib/format-cost";
+import { countBySeverity, sortForPreview } from "@/lib/findings";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -92,9 +94,13 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  findingsByRunId,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** Findings of each run's review (from the already-loaded PR reviews), keyed by run_id.
+   *  Drives the per-run severity counts + "N findings in this run" popover. */
+  findingsByRunId?: Map<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -151,6 +157,7 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const runFindings = findingsByRunId?.get(r.run_id);
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -191,8 +198,17 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--text-muted)" }}>
+                  {runFindings && runFindings.length > 0 ? (
+                    <FindingsSummary
+                      counts={countBySeverity(runFindings)}
+                      previews={sortForPreview(runFindings)}
+                      title={t("runStatus.findingsInRun", { count: runFindings.length })}
+                    />
+                  ) : (
+                    // No loaded review for this run (deleted / still loading) or none found.
+                    t("runStatus.findings", { count: r.findings_count ?? 0 })
+                  )}
                   {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                 </div>
               )}

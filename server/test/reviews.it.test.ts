@@ -282,31 +282,99 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     }
   });
 
-  it('M1: PR list COST = cost of the latest FINISHED run; null without one', async () => {
+  it('M1: PR list COST = total of ALL finished runs; skips null costs; null without one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const { pr: bare } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const at = (iso: string) => new Date(iso);
     await pg.handle.db.insert(t.agentRuns).values([
-      // older done run
-      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T10:00:00Z'), status: 'done', costUsd: 0.5 },
-      // latest done run → wins
-      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T11:00:00Z'), status: 'done', costUsd: 0.012 },
-      // newer but FAILED → ignored
-      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T12:00:00Z'), status: 'failed', costUsd: null },
+      // two done runs (different agents / re-runs) → summed
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T10:00:00Z'), status: 'done', costUsd: 0.001 },
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T11:00:00Z'), status: 'done', costUsd: 0.002 },
+      // done but unpriced (pre-M1 / unknown model) → skipped
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T11:30:00Z'), status: 'done', costUsd: null },
+      // failed / cancelled → not counted even with a cost
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T12:00:00Z'), status: 'failed', costUsd: 9 },
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T12:30:00Z'), status: 'cancelled', costUsd: 9 },
       // PR in the other repo: only a failed run
       { workspaceId, prId: bare.id, ranAt: at('2026-06-01T12:00:00Z'), status: 'failed', costUsd: null },
     ]);
 
     const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const row = list.find((p: { number: number }) => p.number === pr.number);
-    expect(row.cost_usd).toBe(0.012);
+    expect(row.cost_usd).toBeCloseTo(0.003, 10);
 
     const bareRepoId = (
       await pg.handle.db.select().from(t.pullRequests).where(eq(t.pullRequests.id, bare.id))
     )[0]!.repoId;
     const bareList = (await app.inject({ method: 'GET', url: `/repos/${bareRepoId}/pulls` })).json();
     expect(bareList[0].cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it('M1: PR list FINDINGS = latest review of EACH agent (counts + sorted preview)', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo: cleanRepo, pr: clean } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo: newRepo } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const SEC = '00000000-0000-4000-8000-0000000000a1';
+    const PERF = '00000000-0000-4000-8000-0000000000a2';
+    const at = (iso: string) => new Date(iso);
+    const review = async (agentId: string | null, createdAt: string, prId = pr.id) =>
+      (
+        await pg.handle.db
+          .insert(t.reviews)
+          .values({ workspaceId, prId, agentId, kind: 'review', score: 50, createdAt: at(createdAt) })
+          .returning()
+      )[0]!;
+    const finding = (reviewId: string, severity: string, title: string, confidence = 0.9, dismissed = false) => ({
+      reviewId,
+      severity,
+      title,
+      confidence,
+      category: 'bug',
+      file: 'src/a.ts',
+      startLine: 1,
+      endLine: 2,
+      rationale: `why ${title}`,
+      dismissedAt: dismissed ? new Date() : null,
+    });
+
+    const secOld = await review(SEC, '2026-06-01T09:00:00Z');
+    const secNew = await review(SEC, '2026-06-01T10:00:00Z');
+    const perf = await review(PERF, '2026-06-01T10:30:00Z');
+    const legacy = await review(null, '2026-06-01T08:00:00Z');
+    await review(SEC, '2026-06-01T10:00:00Z', clean.id); // reviewed, zero findings
+    await pg.handle.db.insert(t.findings).values([
+      finding(secOld.id, 'CRITICAL', 'old crit (superseded)'),
+      finding(secNew.id, 'CRITICAL', 'crit', 0.95),
+      finding(secNew.id, 'WARNING', 'warn dismissed', 0.8, true), // dismissed still counts
+      finding(perf.id, 'WARNING', 'warn perf', 0.9),
+      finding(perf.id, 'SUGGESTION', 'sugg a', 0.7),
+      finding(perf.id, 'SUGGESTION', 'sugg b', 0.6),
+      finding(legacy.id, 'SUGGESTION', 'legacy sugg', 0.5),
+    ]);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.finding_counts).toEqual({ CRITICAL: 1, WARNING: 2, SUGGESTION: 3 });
+    expect(row.findings_preview.map((f: { title: string }) => f.title)).toEqual([
+      'crit',
+      'warn perf',
+      'warn dismissed',
+      'sugg a',
+      'sugg b',
+    ]);
+    expect(row.findings_preview[0]).toMatchObject({ severity: 'CRITICAL', file: 'src/a.ts', start_line: 1, end_line: 2 });
+
+    const cleanRow = (await app.inject({ method: 'GET', url: `/repos/${cleanRepo.id}/pulls` })).json()[0];
+    expect(cleanRow.finding_counts).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+    expect(cleanRow.findings_preview).toEqual([]);
+
+    const neverRow = (await app.inject({ method: 'GET', url: `/repos/${newRepo.id}/pulls` })).json()[0];
+    expect(neverRow.finding_counts).toBeNull();
+    expect(neverRow.findings_preview).toBeNull();
 
     await app.close();
   });

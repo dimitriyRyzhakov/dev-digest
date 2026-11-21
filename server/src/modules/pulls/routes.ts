@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment, FindingCounts, FindingPreview } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, latestReviewPerAgent, summarizeFindings, sumRunCosts } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -113,13 +113,14 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    // M1 — FINDINGS column: findings of the latest review of EACH agent.
+    const summaryByPr = new Map<string, { counts: FindingCounts; preview: FindingPreview[] }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, agentId: t.reviews.agentId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
@@ -127,20 +128,48 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
       }
+
+      const keptByPr = latestReviewPerAgent(reviewRows);
+      const keptIds = [...keptByPr.values()].flat();
+      const findingRows =
+        keptIds.length > 0
+          ? await container.db
+              .select({
+                reviewId: t.findings.reviewId,
+                id: t.findings.id,
+                severity: t.findings.severity,
+                category: t.findings.category,
+                title: t.findings.title,
+                file: t.findings.file,
+                start_line: t.findings.startLine,
+                end_line: t.findings.endLine,
+                confidence: t.findings.confidence,
+                rationale: t.findings.rationale,
+              })
+              .from(t.findings)
+              .where(inArray(t.findings.reviewId, keptIds))
+          : [];
+      const byReview = new Map<string, typeof findingRows>();
+      for (const f of findingRows) {
+        const list = byReview.get(f.reviewId) ?? [];
+        list.push(f);
+        byReview.set(f.reviewId, list);
+      }
+      for (const [prId, ids] of keptByPr) {
+        const prFindings = ids.flatMap((id) => byReview.get(id) ?? []).map(({ reviewId: _r, ...f }) => f);
+        summaryByPr.set(prId, summarizeFindings(prFindings));
+      }
     }
 
-    // M1 — cost of the latest FINISHED run per PR for the list's COST column.
-    // Same newest-first + first-wins grouping as the score lookup above.
-    const latestRunCostByPr = new Map<string, number | null>();
+    // M1 — COST column: total spend on the PR = sum over ALL its finished runs
+    // (every agent, every re-run). Runs without a cost are skipped.
+    let costByPr = new Map<string, number>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
-      for (const run of runRows) {
-        if (run.prId && !latestRunCostByPr.has(run.prId)) latestRunCostByPr.set(run.prId, run.costUsd);
-      }
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      costByPr = sumRunCosts(runRows);
     }
 
     const now = Date.now();
@@ -167,7 +196,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: latestRunCostByPr.get(r.id) ?? null,
+        cost_usd: costByPr.get(r.id) ?? null,
+        finding_counts: summaryByPr.get(r.id)?.counts ?? null,
+        findings_preview: summaryByPr.get(r.id)?.preview ?? null,
       };
     });
   });
