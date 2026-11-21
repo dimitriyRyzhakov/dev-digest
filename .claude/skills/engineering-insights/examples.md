@@ -7,10 +7,11 @@ DevDigest entries below are FORMAT examples — verify before trusting them as f
 
 | ❌ Reject | Why | ✅ Actionable |
 |---|---|---|
-| Promises can be tricky | truism | `- 2026-03-24 — Promise.all() on ingest pipeline times out after ~30 items → use Promise.allSettled() in batches of 10 (evidence: src/ingest/run.ts#ingestAll)` |
-| Be careful with async state | truism | `- 2026-03-24 — checkout state shared by 3 components; local state desyncs cart → keep it in Zustand (evidence: src/store/cartStore.ts#useCart)` |
+| Promises can be tricky | truism | `- 2026-03-24 — Promise.all() on ingest pipeline times out after ~30 items → use Promise.allSettled() in batches of 10 (evidence: src/ingest/run.ts:42#ingestAll)` |
+| Be careful with async state | truism | `- 2026-03-24 — checkout state shared by 3 components; local state desyncs cart → keep it in Zustand (evidence: src/store/cartStore.ts:8#useCart)` |
 | Tests are important | truism | `- 2026-11-19 — server *.it.test.ts fail without Docker → start Docker or run unit-only: pnpm exec vitest run --exclude '**/*.it.test.ts'` |
-| Bug at app.ts:142 fixed | line number goes stale, no rule | `- 2026-11-19 — hand-built error reply bypasses envelope → throw AppError subclass (evidence: server/src/platform/errors.ts#AppError)` |
+| Bug at app.ts:142 fixed | incident, no rule; bare line with no symbol | `- 2026-11-19 — hand-built error reply bypasses envelope → throw AppError subclass (evidence: server/src/platform/errors.ts:7#AppError)` |
+| … (evidence: server/src/db/schema/runs.ts) | file only: reader must hunt for the spot | `… (evidence: server/src/db/schema/runs.ts:23#agentRuns.costUsd)` |
 | Maybe the indexer is slow because of git log? | unresolved hypothesis | Open Questions: `- 2026-11-19 — repo-intel index of big repo takes minutes; cause unconfirmed (git log vs embedding)` |
 | Renamed variable, fixed types | trivial, won't recur | *(write nothing)* |
 | Patched the logger in reviewer-core and broke server | incident, not lesson | `- 2026-11-19 — NEVER change reviewer-core exports without running server typecheck → server imports it as TS source via alias` |
@@ -25,7 +26,7 @@ DevDigest entries below are FORMAT examples — verify before trusting them as f
 - 2026-11-19 — `pnpm install` in reviewer-core creates a stray pnpm-lock.yaml → package uses npm; run `npm ci` (evidence: reviewer-core/package-lock.json)
 
 ## Codebase Patterns
-- 2026-11-19 — new endpoint → throw AppError subclass; hand-built reply bypasses error envelope (evidence: server/src/app.ts#buildApp)
+- 2026-11-19 — new endpoint → throw AppError subclass; hand-built reply bypasses error envelope (evidence: server/src/app.ts:42#buildApp)
 
 ## Tool & Library Notes
 - 2026-11-19 — NEVER hand-edit migrations/meta/* snapshots → only `pnpm db:generate` keeps them consistent

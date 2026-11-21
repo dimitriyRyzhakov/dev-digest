@@ -31,15 +31,20 @@ Spans several modules / `scripts/` / docker / root config → `./INSIGHTS.md`.
 2. Generic truism ("tests are important", "be careful with async")? → make specific or drop.
 3. Unlikely to recur or saves the next session less than ~5 min? → drop.
 4. Unresolved (stopped mid-debugging, hypothesis)? → Open Questions at most, never a rule.
-5. About code in active flux, or tied to a line number / temp path? → anchor to file + symbol, or drop.
+5. About code in active flux, or tied to a temp path? → anchor to file + symbol, or drop.
+   A line number alone is not an anchor: always pair it with the symbol (`path:line#symbol`).
 6. Contains secrets, tokens or personal data? → never write.
 
 ## Format
 Section (exactly one): What Works · What Doesn't Work · Codebase Patterns ·
 Tool & Library Notes · Recurring Errors & Fixes · Session Notes (`### YYYY-MM-DD` + 1–3 bullets) · Open Questions
-Entry: `- YYYY-MM-DD — <context/trigger> → <what to do instead> (evidence: path#symbol | command)`
+Entry: `- YYYY-MM-DD — <context/trigger> → <what to do instead> (evidence: path:line#symbol | command)`
 One line, max 2 sentences, imperative (lead with Use / NEVER / ALWAYS), names the concrete
 file, function or command. Abstract one level up from the incident, keep the concrete fix.
+Evidence: `path:line#symbol`. Take the line with `grep -n` at write time, pointing at the
+symbol's definition or the exact line that proves the rule. `:line` lets the next reader
+jump straight there; `#symbol` re-finds it after the code moves. If you touch an entry whose
+line has drifted, refresh the `:line` and leave the rest of the entry alone.
 
 ## Append without overwriting — MUST follow exactly
 1. Before: `wc -l <file>` → remember N. Read the file in full.

@@ -1,7 +1,7 @@
 # e2e — insights
 
 Append-only. Written via the `engineering-insights` skill (.claude/skills/engineering-insights). One insight per bullet.
-Format: `- YYYY-MM-DD — <context/trigger> → <what to do instead> (evidence: path#symbol | command)`
+Format: `- YYYY-MM-DD — <context/trigger> → <what to do instead> (evidence: path:line#symbol | command)` — `:line` jumps you there; `#symbol` re-finds it if lines drift.
 Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## What Works
