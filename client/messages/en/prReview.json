@@ -112,6 +112,35 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run",
-    "tokens": "{tokens} tok"
+    "tokens": "{tokens} tok",
+    "agentFallback": "Agent"
+  },
+  "detail": {
+    "crumbPulls": "Pull Requests",
+    "loadErrorTitle": "Couldn't load this pull request",
+    "loadErrorBody": "PR #{number} could not be loaded.",
+    "overviewDescription": "Description",
+    "viewOnGitHub": "View on GitHub",
+    "staleWarning": "This PR is already {status} — running a review is informational and won't affect the merged code.",
+    "tabOverview": "Overview",
+    "tabFindings": "Agent runs",
+    "tabDiff": "Files changed"
+  },
+  "findingsTab": {
+    "cancel": "Cancel",
+    "openTrace": "Open run trace",
+    "liveReview": "Live review",
+    "inProgress": "Review in progress…",
+    "inProgressSub": "the agent is analyzing the diff — this can take a while on large PRs.",
+    "trifectaDetected": "Lethal Trifecta detected",
+    "trifectaCount": "{count} finding(s)",
+    "timeline": "Timeline",
+    "timelineHint": "runs & commits · newest first",
+    "reviewRuns": "Review runs",
+    "reviewRunsHint": "grouped by run · newest first",
+    "emptyTitle": "No findings yet",
+    "emptyBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one).",
+    "deleteReviewRun": "Delete this review run",
+    "deleteRunConfirm": "Delete this run from history? (its logs are removed too)"
   }
 }

@@ -8,6 +8,8 @@
  * not yet exported, add a placeholder below marked
  * `// TODO: reconcile with @devdigest/shared`.
  */
+import type { Agent } from "@devdigest/shared";
+
 export type {
   Settings,
   SettingsUpdate,
@@ -33,6 +35,23 @@ export type {
 
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";
 export type { PrBrief, SmartDiff } from "@devdigest/shared";
+
+/** Editable agent fields — PATCH /agents/:id body (useUpdateAgent, Config tab form). */
+export type AgentPatch = Partial<
+  Pick<
+    Agent,
+    | "name"
+    | "description"
+    | "provider"
+    | "model"
+    | "system_prompt"
+    | "output_schema"
+    | "strategy"
+    | "ci_fail_on"
+    | "repo_intel"
+    | "enabled"
+  >
+>;
 
 /** UI-only view model for a PR list row (derives display fields from PrMeta). */
 export interface PrRowView {

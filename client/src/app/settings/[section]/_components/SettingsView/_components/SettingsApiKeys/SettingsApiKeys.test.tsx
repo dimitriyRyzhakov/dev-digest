@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../../../../../../messages/en/settings.json";
+import messages from "@messages/en/settings.json";
 import { SettingsApiKeys } from "./SettingsApiKeys";
 
 /** S11 (security hardening) — a verified key leaves the input; a failed one stays for fixing. */

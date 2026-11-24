@@ -8,7 +8,7 @@ import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { SeverityCounters } from "../SeverityCounters";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
 import { SEVERITY_LEVELS, applyConfidence, countBySeverity, visibleFindings } from "./helpers";
 import { s } from "./styles";

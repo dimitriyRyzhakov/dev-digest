@@ -12,10 +12,13 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## Codebase Patterns
 <!-- conventions and architecture decisions, with the reason -->
+- 2026-11-24 — Agent instructions are shared with Codex/other agents → ALWAYS edit `AGENTS.md` (root + per package); `CLAUDE.md` is only an `@AGENTS.md` import stub for Claude Code, put nothing shared there (evidence: CLAUDE.md, server/CLAUDE.md)
 
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->
 - 2026-11-19 — Creating several new files in one Bash call (`mkdir -p` + multiple `cat > … <<EOF`) got rejected by Claude Code's removal safety check → use the Write tool per new file; Python heredoc string-replace edits of existing files pass fine (evidence: client/src/components/run-cost-badge/*)
+- 2026-11-24 — The self-review PreToolUse hook sees the WHOLE Bash command text, so a plain `gh pr create` substring match blocked heredocs/echo/test commands that only mention it → match only in command position, and feed gate test cases from a file, never inline in the Bash call (evidence: .claude/skills/self-review/scripts/self-review.mjs#PR_CREATE)
+- 2026-11-24 — `pnpm lint:arch` in a scratch `git worktree` with symlinked `node_modules` reports baseline violations as new (drizzle resolves to an absolute `../../Users/…/node_modules` path, not the baseline's) → judge lint:arch only in the real checkout, or `pnpm install` inside the worktree (evidence: server/.dependency-cruiser-known-violations.json)
 
 ## Recurring Errors & Fixes
 <!-- error message → fix -->

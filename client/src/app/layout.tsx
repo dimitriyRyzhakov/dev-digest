@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
-import { Providers } from "../lib/providers";
-import { themeNoFlashScript } from "../lib/theme";
+import { Providers } from "@/lib/providers";
+import { themeNoFlashScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "DevDigest",
@@ -26,9 +25,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           (one level deep) — real mismatches in descendants are still reported. */}
       <body suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Suspense fallback={null}>
-            <Providers>{children}</Providers>
-          </Suspense>
+          {/* No app-wide Suspense: each page that reads search params wraps
+              its own view, so one suspension can't blank the whole app. */}
+          <Providers>{children}</Providers>
         </NextIntlClientProvider>
       </body>
     </html>

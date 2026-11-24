@@ -53,5 +53,5 @@ file, function or command. Abstract one level up from the incident, keep the con
 - Append-only: never edit, reorder or delete old entries.
   Old entry is wrong → new dated entry `supersedes YYYY-MM-DD entry: …`.
 - Not here: design rationale for one function (→ code comment), active bug tracking (→ issue),
-  static conventions everyone must follow (→ CLAUDE.md).
+  static conventions everyone must follow (→ AGENTS.md).
 - Good vs bad entries, one per section: [examples.md](examples.md).
