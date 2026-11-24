@@ -14,6 +14,7 @@ import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
 import { FindingsSection } from "../FindingsSection";
+import { SkillBlocks } from "../SkillBlocks";
 import { Row, Stat } from "../atoms";
 
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
@@ -75,6 +76,9 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
         {trace.prompt_assembly.skills != null && (
           <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+        )}
+        {trace.prompt_assembly.skill_blocks != null && trace.prompt_assembly.skill_blocks.length > 0 && (
+          <SkillBlocks blocks={trace.prompt_assembly.skill_blocks} />
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />

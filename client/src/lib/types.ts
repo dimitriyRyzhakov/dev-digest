@@ -35,6 +35,24 @@ export type {
 
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";
 export type { PrBrief, SmartDiff } from "@devdigest/shared";
+export type {
+  Skill,
+  SkillType,
+  SkillSource,
+  SkillInput,
+  SkillPatch,
+  SkillImportPreview,
+  AgentSkillLink,
+  SkillBlock,
+  SkillVersion,
+  SkillStats,
+} from "@devdigest/shared";
+
+/** One entry of an agent's ordered skill set — POST /agents/:id/skills `links` (order = index). */
+export interface AgentSkillLinkInput {
+  skill_id: string;
+  enabled: boolean;
+}
 
 /** Editable agent fields — PATCH /agents/:id body (useUpdateAgent, Config tab form). */
 export type AgentPatch = Partial<

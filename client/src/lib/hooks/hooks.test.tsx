@@ -12,6 +12,7 @@ import { coreKeys, usePrIdByNumber } from "./core";
 import { reviewKeys, usePrRunsRefresh } from "./reviews";
 import { repoIntelKeys } from "./repo-intel";
 import { traceKeys } from "./trace";
+import { skillKeys, useSetAgentSkills } from "./skills";
 
 function setup() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -41,6 +42,14 @@ describe("query keys — exact shapes are part of the cache contract", () => {
     expect(reviewKeys.runs("pr1")).toEqual(["pr-runs", "pr1"]);
     expect(repoIntelKeys.state("repo1")).toEqual(["repo-intel-state", "repo1"]);
     expect(traceKeys.run("r1")).toEqual(["run-trace", "r1"]);
+    expect(skillKeys.list()).toEqual(["skills"]);
+    expect(skillKeys.detail("s1")).toEqual(["skill", "s1"]);
+    expect(skillKeys.agentLinks("a1")).toEqual(["agent-skills", "a1"]);
+  });
+
+  it("agentLinksAll is a prefix of every per-agent links key", () => {
+    const all = skillKeys.agentLinksAll();
+    expect(skillKeys.agentLinks("a1").slice(0, all.length)).toEqual([...all]);
   });
 
   it("providerModelsAll is a prefix of every per-provider key (prefix invalidation)", () => {
@@ -105,5 +114,40 @@ describe("useUpdateAgent", () => {
     await act(() => result.current.mutateAsync({ id: "a1", patch: { name: "Renamed" } }));
     expect(qc.getQueryData(agentKeys.detail("a1"))).toEqual(saved);
     expect(inval.mock.calls.some((c) => JSON.stringify(c[0]?.queryKey) === JSON.stringify(["agents"]))).toBe(true);
+  });
+});
+
+describe("useSetAgentSkills", () => {
+  it("writes the ordered links optimistically and posts them as `links`", async () => {
+    const { qc, wrapper } = setup();
+    const fetchSpy = mockFetchJson([
+      { agent_id: "a1", skill_id: "s2", order: 0, enabled: true },
+      { agent_id: "a1", skill_id: "s1", order: 1, enabled: false },
+    ]);
+    const { result } = renderHook(() => useSetAgentSkills(), { wrapper });
+    act(() => {
+      result.current.mutate({
+        agentId: "a1",
+        links: [
+          { skill_id: "s2", enabled: true },
+          { skill_id: "s1", enabled: false },
+        ],
+      });
+    });
+    await waitFor(() =>
+      expect(qc.getQueryData(skillKeys.agentLinks("a1"))).toEqual([
+        { agent_id: "a1", skill_id: "s2", order: 0, enabled: true },
+        { agent_id: "a1", skill_id: "s1", order: 1, enabled: false },
+      ]),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(String(url)).toMatch(/\/agents\/a1\/skills$/);
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      links: [
+        { skill_id: "s2", enabled: true },
+        { skill_id: "s1", enabled: false },
+      ],
+    });
   });
 });

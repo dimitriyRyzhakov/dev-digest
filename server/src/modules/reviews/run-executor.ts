@@ -1,6 +1,11 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import type { Provider, Review, RunTrace, SkillBlock, UnifiedDiff } from '@devdigest/shared';
+import {
+  reviewPullRequest,
+  countBlockers,
+  renderSkillBlock,
+  type PromptSkill,
+} from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -183,6 +188,10 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // M2 — skills: linked + enabled for this agent + enabled globally, in
+      // link order. Rendered into the system message by the engine.
+      const skills = await this.resolveSkills(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -203,6 +212,7 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        ...(skills.prompt.length > 0 ? { skills: skills.prompt } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -270,7 +280,10 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: {
+          ...outcome.assembly,
+          skill_blocks: skills.blocks.length > 0 ? skills.blocks : null,
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -313,6 +326,39 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * M2 — the skills this run sends: linked to the agent, enabled for it, and
+   * enabled globally, in link order. Also returns the per-skill trace blocks
+   * (tokens counted on exactly the text the engine renders for that skill).
+   */
+  private async resolveSkills(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ prompt: PromptSkill[]; blocks: SkillBlock[] }> {
+    const links = await this.container.agentsRepo.linkedSkills(agentId);
+    const active = links.filter((l) => l.enabled && l.skill.enabled);
+    const prompt = active.map((l) => ({
+      name: l.skill.name,
+      description: l.skill.description,
+      body: l.skill.body,
+    }));
+    const blocks = active.map((l, i) => ({
+      skill_id: l.skill.id,
+      name: l.skill.name,
+      version: l.skill.version,
+      tokens: this.container.tokenizer.count(renderSkillBlock(prompt[i]!, i)),
+    }));
+    if (blocks.length > 0) {
+      const total = blocks.reduce((n, b) => n + b.tokens, 0);
+      runLog.info(
+        `Skills attached: ${blocks.length} (${blocks.map((b) => b.name).join(', ')}) · ~${total} token(s)`,
+      );
+    } else {
+      runLog.info('No skills attached to this agent');
+    }
+    return { prompt, blocks };
   }
 
   /**

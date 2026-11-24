@@ -115,7 +115,13 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -130,6 +136,64 @@ export const Skill = z.object({
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Create body for POST /skills. The description is the skill's interface: a directive. */
+export const SkillInput = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().min(1).max(500),
+  type: SkillType,
+  body: z.string().trim().min(1).max(20_000),
+  source: z.enum(['manual', 'imported_file']).optional(),
+});
+export type SkillInput = z.infer<typeof SkillInput>;
+
+/** Patch body for PATCH /skills/:id. A changed body bumps the skill version. */
+export const SkillPatch = SkillInput.omit({ source: true })
+  .partial()
+  .extend({ enabled: z.boolean().optional() });
+export type SkillPatch = z.infer<typeof SkillPatch>;
+
+/** One immutable body snapshot (GET /skills/:id/versions, newest first). */
+export const SkillVersion = z.object({
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/** Usage of a skill (GET /skills/:id/stats). Runs are counted from run traces. */
+export const SkillStats = z.object({
+  /** Agents that would send it now: link enabled (skill enabled globally is shown separately). */
+  used_by: z.number().int(),
+  agents: z.array(
+    z.object({ id: z.string(), name: z.string(), link_enabled: z.boolean(), agent_enabled: z.boolean() }),
+  ),
+  /** Review runs in the last 30 days whose prompt included this skill. */
+  runs_30d: z.number().int(),
+  /** Of all runs of agents that link it (30 days), the share that included it, 0–100; null without runs. */
+  pull_rate: z.number().nullable(),
+  last_used_at: z.string().nullable(),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
+/** A file inside an imported archive that was NOT used (never inflated, never run). */
+export const IgnoredSkillFile = z.object({
+  path: z.string(),
+  reason: z.string(),
+});
+export type IgnoredSkillFile = z.infer<typeof IgnoredSkillFile>;
+
+/** Result of POST /skills/import/preview — parsed, NOT persisted. */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source_file: z.string(),
+  ignored_files: z.array(IgnoredSkillFile),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -182,6 +246,8 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  // Number of skills linked AND enabled for this agent (M2). Read-only.
+  skill_count: z.number().int().optional(),
 });
 export type Agent = z.infer<typeof Agent>;
 
@@ -189,5 +255,7 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  // Per-agent switch: a linked-but-disabled skill keeps its position but is not sent.
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;

@@ -79,6 +79,31 @@ export const s = {
     overflow: "auto",
   } satisfies CSSProperties,
 
+  // ---- SkillBlocks ----
+  skillBlocks: {
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    marginBottom: 8,
+    padding: "8px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    fontSize: 12,
+  } satisfies CSSProperties,
+  skillBlocksTitle: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" } satisfies CSSProperties,
+  skillBlockRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
+  skillBlockName: { color: "var(--text-primary)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" } satisfies CSSProperties,
+  skillBlockVersion: { color: "var(--text-muted)" } satisfies CSSProperties,
+  skillBlockTokens: { color: "var(--text-secondary)", minWidth: 90, textAlign: "right" } satisfies CSSProperties,
+  skillBlocksTotal: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    borderTop: "1px solid var(--border)",
+    paddingTop: 6,
+    fontWeight: 600,
+  } satisfies CSSProperties,
+
   // ---- Stat ----
   stat: {
     flex: 1,

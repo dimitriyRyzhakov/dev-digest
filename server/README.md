@@ -72,7 +72,8 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
   subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
+    skills["skills (M2)<br/>/skills · /skills/:id · /skills/:id/versions · /skills/:id/stats · /skills/import/preview"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -106,7 +107,19 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, the built-in agents — General, Security, Performance,
+plus the M2 Test Quality and API Contract reviewers, seeded without skills).
+
+## Skills (M2)
+
+Reusable text-only review instructions (`modules/skills/`), linked per agent with an
+order and an on/off switch (`agent_skills.order` / `.enabled`). A run sends a skill
+only when it is linked, enabled for the agent and enabled globally; `reviewer-core`
+renders them into the system message, and the trace gets `prompt_assembly.skill_blocks`
+(tokens per skill). Import (`POST /skills/import/preview`) reads a `.md` or `.zip` in
+memory: one markdown file is inflated, everything else is listed as ignored and never
+unpacked or run; it persists nothing until the client confirms with `POST /skills`.
+Spec: [specs/M2-skills.md](specs/M2-skills.md).
 
 ## Review context (non-obvious)
 

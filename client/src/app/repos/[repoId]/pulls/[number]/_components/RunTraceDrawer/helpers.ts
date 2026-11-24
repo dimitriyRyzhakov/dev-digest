@@ -1,5 +1,5 @@
 import type { LogLine } from "@devdigest/ui";
-import type { RunTrace } from "@devdigest/shared";
+import type { RunTrace, SkillBlock } from "@devdigest/shared";
 
 interface RawEvent {
   t: string;
@@ -20,4 +20,9 @@ export function traceLog(trace: RunTrace | undefined): LogLine[] {
 /** Seconds-formatted duration. */
 export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Total tokens across the per-skill blocks sent in the system message (M2). */
+export function totalSkillTokens(blocks: readonly SkillBlock[]): number {
+  return blocks.reduce((sum, b) => sum + b.tokens, 0);
 }

@@ -22,3 +22,16 @@
     transform: translateY(0);
   }
 }
+
+/* Skill Preview (M2): typographic markdown, scoped so other Markdown uses keep their look. */
+.skill-md .dd-md h1 { font-size: 20px; font-weight: 700; margin: 0 0 12px; }
+.skill-md .dd-md h2 { font-size: 16px; font-weight: 700; margin: 18px 0 8px; }
+.skill-md .dd-md h3 { font-size: 14px; font-weight: 700; margin: 14px 0 6px; }
+.skill-md .dd-md p { margin: 0 0 10px; color: var(--text-secondary); }
+.skill-md .dd-md ul,
+.skill-md .dd-md ol { margin: 0 0 10px; padding-left: 20px; color: var(--text-secondary); }
+.skill-md .dd-md ul { list-style: disc; }
+.skill-md .dd-md ol { list-style: decimal; }
+.skill-md .dd-md li { margin: 3px 0; }
+.skill-md .dd-md strong { color: var(--text-primary); }
+.skill-md .dd-md code { font-family: var(--font-mono, monospace); font-size: 12px; padding: 1px 5px; border-radius: 4px; background: var(--bg-hover); }

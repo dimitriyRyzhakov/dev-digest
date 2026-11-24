@@ -6,6 +6,8 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -18,11 +20,13 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the built-in agents (General, Security, Performance,
+ * plus the M2 Test Quality + API Contract reviewers), all on the default
+ * openrouter/deepseek-v4-flash provider+model.
  *
- * Later milestones populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Skills start empty: their sources live in docs/skills/ and are created or
+ * imported through the UI (the M2 walkthrough). Other later-milestone tables
+ * (conventions, memory, eval, …) start empty too.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -175,7 +179,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (starter presets + the M2 skill-driven reviewers) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -207,6 +211,29 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       provider: DEFAULT_PROVIDER,
       model: DEFAULT_MODEL,
       systemPrompt: PERFORMANCE_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks test quality: uncovered branches, missed corner cases, over-mocking and flaky tests.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking changes to HTTP routes, params and response shapes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
       enabled: true,
       version: 1,
       createdBy: userId,

@@ -16,6 +16,8 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 - 2026-11-19 — Run cost needed in UI → use `outcome.costUsd` from `reviewPullRequest` (OpenRouter `usage.cost`, else `PriceBook` estimate), persisted to `agent_runs.cost_usd`; NEVER re-estimate from tokens or add model calls (evidence: server/src/modules/reviews/run-executor.ts#execute, reviewer-core/src/llm/openrouter.ts)
 - 2026-11-19 — Adding a field to `RunStats`/`RunTrace` (stored as jsonb in `run_traces`) → ALWAYS make it `.nullish()`, else traces persisted before the change fail to parse (evidence: server/src/vendor/shared/contracts/trace.ts#RunStats.cost_usd)
 
+- 2026-11-24 — New adapter (e.g. zip reader for skill import) needs a port, but `src/adapters/**` may not import `src/modules/**` → declare the port in `vendor/shared/adapters.ts` (mirror to client), keep module-only ports (store interfaces) in `modules/<m>/ports.ts`, wire both in `container.ts` (evidence: server/src/adapters/skill-archive/index.ts, server/src/modules/skills/ports.ts)
+
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->
 - 2026-11-19 — USD/float columns in Drizzle → use `doublePrecision`, not `numeric` (postgres.js returns `numeric` as string, breaking `z.number()` contracts) (evidence: server/src/db/schema/runs.ts#agentRuns.costUsd)

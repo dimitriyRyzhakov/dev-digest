@@ -27,14 +27,22 @@ flowchart TD
   ONB["/onboarding<br/>add repo"] -->|"POST /repos"| API[("Fastify API")]
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
 
-  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config)"]
+  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · … · skills)"]
+  SKILLS["/skills<br/>Skills Lab grid"] --> SKILL["/skills/:id · /skills/new · /skills/import<br/>list + inline editor / import"]
+  AGENT -.->|"?tab=skills<br/>link · order · enable"| SKILLS
   SETTINGS["/settings/:section<br/>API keys · models"]
 
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
   PR -->|"GET /pulls/:id · /reviews · /pulls/:id/comments<br/>POST /pulls/:id/review · /findings/:id/(accept|dismiss)"| API
   AGENTS -->|"/agents · /agents/:id"| API
+  AGENT -->|"GET · POST /agents/:id/skills"| API
+  SKILLS -->|"/skills · /skills/:id · POST /skills/import/preview"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
+
+The agent editor's Skills tab (`/agents/:id?tab=skills`) links workspace skills to the agent,
+orders them (drag or Alt+↑/↓) and toggles them; order = order of the skill blocks in the system
+prompt. The run trace's Prompt assembly lists each skill sent with its version and tokens.
 
 Cross-cutting chrome lives in `src/components/app-shell` (nav, breadcrumbs,
 `g`-then-key shortcuts). Pages are thin; feature logic sits in colocated

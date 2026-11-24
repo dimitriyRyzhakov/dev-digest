@@ -286,3 +286,21 @@ export interface SecretsProvider {
    */
   set?(key: SecretKey, value: string): Promise<void>;
 }
+
+// ---------- Skill archives (M2 import: .zip read in memory, never executed) ----------
+export interface SkillArchiveEntry {
+  /** Path inside the archive, `/`-separated. */
+  path: string;
+  /** Declared uncompressed size in bytes (from the zip directory). */
+  size: number;
+}
+
+export interface SkillArchiveReader {
+  /** List file entries WITHOUT inflating any of them. Throws on a malformed archive. */
+  listEntries(archive: Uint8Array): SkillArchiveEntry[];
+  /**
+   * Inflate exactly one entry and decode it as UTF-8. Throws when it is missing,
+   * larger than `maxBytes`, or not valid UTF-8. No other entry is inflated.
+   */
+  readText(archive: Uint8Array, path: string, maxBytes: number): string;
+}

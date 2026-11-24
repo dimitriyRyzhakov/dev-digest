@@ -9,6 +9,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md) (M2 — deliberately general; its narrow checks come from linked skills)
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) (M2 — same: breaking-change rules come from skills)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -19,13 +21,26 @@ in the DB). The canonical, reviewable copies live next to this file:
 Assembly happens in `reviewer-core/src/prompt.ts` (`assemblePrompt`). The model
 receives exactly two messages:
 
-**System message** = your agent prompt **+** a fixed injection guard:
+**System message** = your agent prompt **+** the agent's enabled skills **+** a fixed
+injection guard:
 
 ```
 <your system_prompt>
 
-<INJECTION_GUARD>   // appended verbatim to EVERY agent, every run
+## Skills (apply in order)      // only when the agent has enabled skills (M2)
+### Skill 1: <name>
+<description>
+<body>
+### Skill 2: …
+
+<INJECTION_GUARD>   // appended verbatim to EVERY agent, every run — always last
 ```
+
+Skills are reusable instruction blocks stored in the DB (`skills`) and linked per
+agent (`agent_skills`: order + enabled). Only links that are enabled for the agent
+**and** whose skill is enabled globally are sent, in link order. Keep the agent
+prompt general and put narrow, reusable checks into skills; skill sources live in
+[`docs/skills/`](../skills/).
 
 `INJECTION_GUARD` (`prompt.ts:16`) tells the model that everything inside
 `<untrusted>…</untrusted>` is data, never instructions, and that claims like "test
@@ -38,7 +53,6 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
