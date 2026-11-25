@@ -14,8 +14,3 @@ export function parseUnifiedDiff(raw: string): FileDiff[] {
       patch: chunk,
     }));
 }
-
-/** Older name, kept for existing callers. */
-export function parseDiff(raw: string): FileDiff[] {
-  return parseUnifiedDiff(raw);
-}
