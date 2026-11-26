@@ -32,6 +32,6 @@ export const s = {
     outline: "none",
     color: "var(--text-primary)",
   } satisfies CSSProperties,
-  sidebarList: { flex: 1, overflow: "auto", padding: "0 12px 12px", display: "grid", gap: 10, alignContent: "start" } satisfies CSSProperties,
+  sidebarList: { flex: 1, overflow: "auto", padding: "0 12px 12px", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10, alignContent: "start" } satisfies CSSProperties,
   main: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "auto" } satisfies CSSProperties,
 } as const;

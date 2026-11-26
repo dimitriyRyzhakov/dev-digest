@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { FormField, SelectInput, Textarea, TextInput } from "@devdigest/ui";
 import type { SkillType } from "@/lib/types";
 import { SKILL_TYPES } from "@/lib/skills";
-import { BODY_ROWS } from "./constants";
+import { BODY_ROWS, DESCRIPTION_ROWS } from "./constants";
 import { estimateTokens, type SkillDraft } from "./helpers";
 import { s } from "./styles";
 
@@ -42,9 +42,10 @@ export function SkillFields({
         </FormField>
       </div>
       <FormField label={t("form.description")} required hint={t("form.descriptionHint")}>
-        <TextInput
+        <Textarea
           value={draft.description}
           onChange={set("description")}
+          rows={DESCRIPTION_ROWS}
           placeholder={t("form.descriptionPlaceholder")}
         />
       </FormField>

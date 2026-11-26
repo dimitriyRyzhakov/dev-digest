@@ -36,7 +36,5 @@ export function toSkillInput(d: SkillDraft, source: SkillInput["source"] = "manu
   };
 }
 
-/** Rough token estimate (~4 chars/token) for the editor label; the run trace has exact counts. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.trim().length / 4);
-}
+/** Shared with the conventions skill modal; lives in lib/skills. */
+export { estimateTokens } from "@/lib/skills";

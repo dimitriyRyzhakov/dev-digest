@@ -65,6 +65,9 @@ Follow the [agent prompt conventions](../agent-prompts/README.md):
 | test-flakiness | [test-flakiness.md](test-flakiness.md) | rubric | Test Quality Reviewer |
 | api-route-breaking-change | [api-route-breaking-change.md](api-route-breaking-change.md) | rubric | API Contract Reviewer |
 | api-versioning-gate | [api-versioning-gate/](api-versioning-gate/SKILL.md) | convention | API Contract Reviewer (import demo) |
+| breaking-change | [breaking-change.md](breaking-change.md) | rubric | API Contract Reviewer |
+| response-schema | [response-schema.md](response-schema.md) | rubric | API Contract Reviewer |
+| semver-discipline | [semver-discipline.md](semver-discipline.md) | convention | API Contract Reviewer |
 
 Both agents are seeded with **no** skills. Link them in the agent's **Skills** tab, in the
 order above. The control experiment in [experiments/](experiments/README.md) shows each agent

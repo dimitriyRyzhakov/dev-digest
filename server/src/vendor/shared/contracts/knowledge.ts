@@ -205,15 +205,71 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+/**
+ * A house rule drafted by the conventions extractor. Every stored candidate is
+ * grounded: its file exists in the clone and contains its snippet (checked by
+ * code, not the model). `accepted` is derived: `status === 'accepted'`.
+ */
 export const ConventionCandidate = z.object({
   id: z.string(),
   rule: z.string(),
   evidence_path: z.string(),
   evidence_snippet: z.string(),
+  /** 1-based inclusive line range of the snippet in `evidence_path`. */
+  evidence_start_line: z.number().int().nullish(),
+  evidence_end_line: z.number().int().nullish(),
   confidence: z.number().min(0).max(1),
+  /** Short topic tag ("error handling", "api layer"); null for older candidates. */
+  category: z.string().nullish(),
   accepted: z.boolean(),
+  status: ConventionStatus,
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** GET /repos/:id/conventions — newest first; last_scan_at = newest candidate. */
+export const ConventionList = z.object({
+  candidates: z.array(ConventionCandidate),
+  last_scan_at: z.string().nullable(),
+  /** Files (configs + samples) the latest scan sent to the model; null before any scan. */
+  sample_files: z.number().int().nullish(),
+});
+export type ConventionList = z.infer<typeof ConventionList>;
+
+/** PATCH /conventions/:id — edit the rule text and/or set the status. */
+export const ConventionPatch = z
+  .object({
+    rule: z.string().trim().min(1).max(500).optional(),
+    status: ConventionStatus.optional(),
+  })
+  .refine((p) => p.rule !== undefined || p.status !== undefined, {
+    message: 'Nothing to change',
+  });
+export type ConventionPatch = z.infer<typeof ConventionPatch>;
+
+/** POST /repos/:id/conventions/extract — the repo's list after the run. */
+export const ConventionExtractResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  /** Model candidates dropped because their evidence was not found in the repo. */
+  dropped: z.number().int(),
+  cost_usd: z.number().nullable(),
+});
+export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
+
+/**
+ * POST /repos/:id/conventions/skill — merge the accepted candidates into one
+ * skill. type ('convention') and source ('extracted') are fixed by the server.
+ */
+export const ConventionSkillInput = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().min(1).max(500),
+  body: z.string().trim().min(1).max(20_000),
+  enabled: z.boolean(),
+});
+export type ConventionSkillInput = z.infer<typeof ConventionSkillInput>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

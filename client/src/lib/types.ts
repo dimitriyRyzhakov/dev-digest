@@ -47,6 +47,14 @@ export type {
   SkillVersion,
   SkillStats,
 } from "@devdigest/shared";
+export type {
+  ConventionCandidate,
+  ConventionStatus,
+  ConventionList,
+  ConventionPatch,
+  ConventionExtractResult,
+  ConventionSkillInput,
+} from "@devdigest/shared";
 
 /** One entry of an agent's ordered skill set — POST /agents/:id/skills `links` (order = index). */
 export interface AgentSkillLinkInput {

@@ -7,6 +7,7 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
+import type { PrMeta } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -129,6 +130,77 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     const second = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
     expect(second.json().length).toBe(first.json().length);
     await app.close();
+  });
+
+  it('PR re-sync refreshes a retargeted base, head branch and counts (list + poll)', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const workspaceId = (await pg.handle.db.select().from(t.workspaces))[0]!.id;
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({ workspaceId, owner: 'acme', name: 'retarget', fullName: 'acme/retarget' })
+      .returning();
+    const opened: PrMeta = {
+      number: 6,
+      title: 'Demo/route rename',
+      author: 'dev',
+      branch: 'demo/route-rename',
+      base: 'main',
+      head_sha: 'aaaa1111',
+      additions: 120,
+      deletions: 0,
+      files_count: 8,
+      status: 'open',
+      opened_at: '2026-11-25T16:00:00Z',
+      updated_at: '2026-11-25T16:00:00Z',
+    };
+    const retargeted: PrMeta = {
+      ...opened,
+      branch: 'demo/route-rename-v2',
+      base: 'demo/skills-base',
+      head_sha: 'bbbb2222',
+      additions: 4,
+      deletions: 4,
+      files_count: 1,
+      updated_at: '2026-11-25T16:30:00Z',
+    };
+    const rowOf = async () =>
+      (
+        await pg.handle.db
+          .select()
+          .from(t.pullRequests)
+          .where(eq(t.pullRequests.repoId, repo!.id))
+      )[0]!;
+    const appWith = (pulls: PrMeta[]) =>
+      buildApp({
+        config,
+        db: pg.handle.db,
+        overrides: { git: new MockGitClient(), github: new MockGitHubClient({ pulls }) },
+      });
+
+    const first = await appWith([opened]);
+    await first.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` });
+    await first.close();
+    expect((await rowOf()).base).toBe('main');
+
+    const viaList = await appWith([retargeted]);
+    await viaList.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` });
+    await viaList.close();
+    const listed = await rowOf();
+    expect(listed).toMatchObject({
+      base: 'demo/skills-base',
+      branch: 'demo/route-rename-v2',
+      headSha: 'bbbb2222',
+      additions: 4,
+      deletions: 4,
+      filesCount: 1,
+      author: 'dev',
+    });
+
+    const viaPoll = await appWith([{ ...retargeted, base: 'release/1.x' }]);
+    const poll = await viaPoll.inject({ method: 'POST', url: `/repos/${repo!.id}/poll` });
+    await viaPoll.close();
+    expect(poll.json().synced).toBe(1);
+    expect((await rowOf()).base).toBe('release/1.x');
   });
 
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {

@@ -5,6 +5,7 @@ import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
+import { upsertPullRequests } from '../_shared/pull-sync.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
@@ -43,35 +44,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     if (gh) {
       try {
         const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
-        for (const pr of pulls) {
-          await container.db
-            .insert(t.pullRequests)
-            .values({
-              workspaceId,
-              repoId: repo.id,
-              number: pr.number,
-              title: pr.title,
-              author: pr.author,
-              branch: pr.branch,
-              base: pr.base,
-              headSha: pr.head_sha,
-              additions: pr.additions,
-              deletions: pr.deletions,
-              filesCount: pr.files_count,
-              status: pr.status,
-              openedAt: pr.opened_at ? new Date(pr.opened_at) : null,
-              updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
-            })
-            .onConflictDoUpdate({
-              target: [t.pullRequests.repoId, t.pullRequests.number],
-              set: {
-                title: pr.title,
-                headSha: pr.head_sha,
-                status: pr.status,
-                updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
-              },
-            });
-        }
+        await upsertPullRequests(container.db, workspaceId, repo.id, pulls);
       } catch (err) {
         app.log.warn({ err }, 'GitHub PR sync skipped (no token / offline); serving persisted PRs');
       }

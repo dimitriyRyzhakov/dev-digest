@@ -33,6 +33,13 @@ import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.j
 import { FflateSkillArchive } from '../adapters/skill-archive/index.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import { ConventionsService } from '../modules/conventions/service.js';
+import {
+  defaultFeatureModel,
+  getFeatureModelOverride,
+} from '../modules/settings/feature-models.js';
+import { readContainedFile } from './contained-read.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -82,6 +89,7 @@ export class Container {
   private _tokenizer?: Tokenizer;
   private _skillArchive?: SkillArchiveReader;
   private _skillsService?: SkillsService;
+  private _conventionsService?: ConventionsService;
   private _priceBook?: PriceBook;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
@@ -144,6 +152,20 @@ export class Container {
     return (this._skillsService ??= new SkillsService({
       store: new SkillsRepository(this.db),
       archive: this.skillArchive,
+    }));
+  }
+
+  /** Conventions extractor use cases (M2), wired with their ports. */
+  get conventionsService(): ConventionsService {
+    return (this._conventionsService ??= new ConventionsService({
+      store: new ConventionsRepository(this.db),
+      skills: this.skillsService,
+      samples: (repoId, n) => this.repoIntel.getConventionSamples(repoId, n),
+      readFile: readContainedFile,
+      resolveModel: async (workspaceId) =>
+        (await getFeatureModelOverride(this, workspaceId, 'conventions')) ??
+        defaultFeatureModel('conventions'),
+      llm: (provider) => this.llm(provider),
     }));
   }
 

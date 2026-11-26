@@ -74,6 +74,7 @@ flowchart TB
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
     skills["skills (M2)<br/>/skills · /skills/:id · /skills/:id/versions · /skills/:id/stats · /skills/import/preview"]
+    conventions["conventions (M2)<br/>/repos/:id/conventions · /repos/:id/conventions/extract<br/>/conventions/:id · /repos/:id/conventions/skill"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -120,6 +121,23 @@ renders them into the system message, and the trace gets `prompt_assembly.skill_
 memory: one markdown file is inflated, everything else is listed as ignored and never
 unpacked or run; it persists nothing until the client confirms with `POST /skills`.
 Spec: [specs/M2-skills.md](specs/M2-skills.md).
+
+## Conventions extractor (M2)
+
+`modules/conventions/` drafts house rules from a cloned repo:
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/repos/:id/conventions` | candidates newest first + `last_scan_at` |
+| POST | `/repos/:id/conventions/extract` | one run → `{ candidates, dropped, cost_usd }`; 409 `repo_not_cloned` |
+| PATCH | `/conventions/:id` | `{ rule?, status? }` (`pending` / `accepted` / `rejected`) |
+| POST | `/repos/:id/conventions/skill` | merge accepted → one `convention` / `extracted` skill; 201 new, 200 new version, 409 name owned by another skill |
+
+Input is picked by code (root config files + `repoIntel.getConventionSamples(…, 12)`),
+the `conventions` feature model is called **once** (`schemaName: ConventionExtraction`),
+and every candidate is grounded by code (`readContainedFile` + `locateSnippet`) before
+it is stored; the rest only count as `dropped`. A re-scan keeps accepted candidates.
+Spec: [specs/M2-conventions.md](specs/M2-conventions.md).
 
 ## Review context (non-obvious)
 

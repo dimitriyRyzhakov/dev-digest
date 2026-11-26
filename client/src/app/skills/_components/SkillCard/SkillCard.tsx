@@ -68,7 +68,7 @@ export function SkillCard({
           <Icon.Trash size={13} />
         </button>
       </div>
-      <div style={s.description}>{skill.description}</div>
+      <div style={s.description} title={skill.description}>{skill.description}</div>
       <div style={s.metaRow}>
         <SkillTypeBadge type={skill.type} />
         <span style={s.source}>

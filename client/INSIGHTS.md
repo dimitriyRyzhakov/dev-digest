@@ -6,6 +6,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## What Works
 <!-- approaches and solutions that worked here -->
+- 2026-11-25 — A long file path in a flex header pushed the line range and copy button out of view → wrap it in a span with `minWidth:0; flex:1; overflow:hidden; whiteSpace:nowrap; textOverflow:ellipsis; direction:rtl; textAlign:left` and put the text in `<bdi dir="ltr">`, so it is cut at the START and `file.ts:3-6` stays visible; keep the icon in a `flexShrink:0` span (evidence: client/src/app/repos/[repoId]/conventions/_components/ConventionCard/styles.ts#locationWrap)
 
 ## What Doesn't Work
 <!-- dead ends and antipatterns, with why — the most valuable section -->
@@ -17,6 +18,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 - 2026-11-24 — A pure route helper (L1) needing a DTO/patch type that a hook defines → put the type in `src/lib/types.ts` (L0, derived from `@devdigest/shared`) and import it from both; NEVER `import type` from `@/lib/hooks/*` — eslint-plugin-boundaries sees all of `src/lib/**` as one element and won't flag it, only self-review does (evidence: client/src/lib/types.ts#AgentPatch)
 
 - 2026-11-24 — Editing an entity (skill, agent) in a modal or side drawer was rejected by the user → follow the Agents screen: grid at `/<entity>`, then `/<entity>/:id` with the list on the left and the editor inline on the right; create/import are routes in the same frame (`/new`, `/import`), never popups (evidence: client/src/app/skills/_components/SkillsWorkspace, client/src/app/agents/[id]/_components/AgentDetailView)
+- 2026-11-24 — Card text in a sidebar list spilled past the column although the text was `nowrap`+`ellipsis` → a grid track defaults to `min-width:auto`, so one long line widens the card; set `gridTemplateColumns: "minmax(0, 1fr)"` on the list and `minWidth: 0` on the card, then wrap/clamp the text (evidence: client/src/app/skills/_components/SkillsWorkspace/styles.ts#sidebarList)
 
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->

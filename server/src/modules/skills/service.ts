@@ -6,7 +6,7 @@ import type {
   SkillStats,
   SkillVersion,
 } from '@devdigest/shared';
-import { ValidationError } from '../../platform/errors.js';
+import { ConflictError, ValidationError } from '../../platform/errors.js';
 import {
   SKILL_IMPORT_LIMITS,
   detectUploadKind,
@@ -22,6 +22,15 @@ import type { SkillsDeps } from './ports.js';
  * confirms. From an archive only one markdown file is inflated; scripts and
  * other files are listed as ignored and never unpacked or run.
  */
+/** Input of `upsertExtracted`: type and source are fixed (`convention` / `extracted`). */
+export interface ExtractedSkillInput {
+  name: string;
+  description: string;
+  body: string;
+  enabled: boolean;
+  evidenceFiles: string[];
+}
+
 export class SkillsService {
   constructor(private deps: SkillsDeps) {}
 
@@ -41,6 +50,48 @@ export class SkillsService {
       body: input.body,
       source: input.source ?? 'manual',
     });
+  }
+
+  /**
+   * Save the skill merged from a repo's accepted conventions. A new name creates
+   * a `convention` / `extracted` skill; an existing `extracted` skill of that
+   * name is updated (a changed body bumps the version); a name owned by any
+   * other skill is a conflict, so a hand-written skill is never overwritten.
+   */
+  async upsertExtracted(
+    workspaceId: string,
+    input: ExtractedSkillInput,
+  ): Promise<{ skill: Skill; created: boolean }> {
+    const existing = await this.deps.store.getByName(workspaceId, input.name);
+    if (!existing) {
+      const skill = await this.deps.store.create(workspaceId, {
+        name: input.name,
+        description: input.description,
+        type: 'convention',
+        source: 'extracted',
+        body: input.body,
+        enabled: input.enabled,
+        evidenceFiles: input.evidenceFiles,
+      });
+      return { skill, created: true };
+    }
+    if (existing.source !== 'extracted') {
+      throw new ConflictError(`A skill named "${input.name}" already exists`);
+    }
+    const bodyChanged = input.body !== existing.body;
+    const skill = await this.deps.store.update(
+      workspaceId,
+      existing.id,
+      {
+        description: input.description,
+        body: input.body,
+        enabled: input.enabled,
+        evidenceFiles: input.evidenceFiles,
+      },
+      bodyChanged ? existing.version + 1 : undefined,
+    );
+    if (!skill) throw new ConflictError(`A skill named "${input.name}" already exists`);
+    return { skill, created: false };
   }
 
   /** A changed body bumps the version and snapshots it; other fields don't. */

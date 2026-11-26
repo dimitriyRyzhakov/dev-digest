@@ -6,6 +6,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## What Works
 <!-- approaches and solutions that worked here -->
+- 2026-11-25 — Conventions extractor: a cheap model (deepseek-v4-flash) ignored the prompt asks for 3–15 line evidence and calibrated confidence (every candidate was one line at 0.9) → enforce quality in code after grounding: widen evidence with real file lines, cap confidence by supporting-file count, cap candidates per file, diversify samples per directory; the prompt alone is not enough (evidence: server/src/modules/conventions/domain.ts#evidenceFromFile, #calibrateConfidence)
 - 2026-11-19 — Need a FAILED review run in an `.it.test` → pass a structured fixture that fails the Review schema (e.g. `appWith({ not: 'a review' })`); `MockLLMProvider.completeStructured` throws and the executor's real failure path runs (evidence: server/test/reviews.it.test.ts "a FAILED review run stores cost_usd = null")
 
 ## What Doesn't Work
@@ -13,6 +14,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## Codebase Patterns
 <!-- conventions and architecture decisions, with the reason -->
+- 2026-11-25 — Grounding LLM-cited evidence by reading the cited path from the clone let a hallucinated/injected path (e.g. `.env`) be read, widened and stored, though `readContainedFile` blocked traversal → ground only against files actually sent to the model (keep a path→content map of the input), never re-read model-named paths (evidence: server/src/modules/conventions/service.ts#extract, test/conventions.it.test.ts "never grounds evidence in a clone file that was not sent")
 - 2026-11-19 — Run cost needed in UI → use `outcome.costUsd` from `reviewPullRequest` (OpenRouter `usage.cost`, else `PriceBook` estimate), persisted to `agent_runs.cost_usd`; NEVER re-estimate from tokens or add model calls (evidence: server/src/modules/reviews/run-executor.ts#execute, reviewer-core/src/llm/openrouter.ts)
 - 2026-11-19 — Adding a field to `RunStats`/`RunTrace` (stored as jsonb in `run_traces`) → ALWAYS make it `.nullish()`, else traces persisted before the change fail to parse (evidence: server/src/vendor/shared/contracts/trace.ts#RunStats.cost_usd)
 
@@ -21,12 +23,17 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->
 - 2026-11-19 — USD/float columns in Drizzle → use `doublePrecision`, not `numeric` (postgres.js returns `numeric` as string, breaking `z.number()` contracts) (evidence: server/src/db/schema/runs.ts#agentRuns.costUsd)
+- 2026-11-25 — `pnpm db:generate` failed with `Interactive prompts require a TTY terminal` when a schema change dropped one column and added another (drizzle-kit asks "rename?") → generate in two steps: first add the new columns while keeping the old one (hand-append the backfill `UPDATE` to that NEW migration), then drop the old column and generate again (evidence: server/src/db/migrations/0013_conventions_status.sql, 0014_conventions_drop_accepted.sql)
 
 ## Recurring Errors & Fixes
 <!-- error message → fix -->
+- 2026-11-25 — `pnpm lint:arch` reported a circular dependency once the container wired a service that called `modules/settings/feature-models.ts` (it took a `Container`) → helpers the container uses take a narrow `{ db }`, not `Container` (evidence: server/src/modules/settings/feature-models.ts#getFeatureModelOverride)
 - 2026-11-19 — `pnpm db:migrate` prints `{ severity: 'NOTICE', code: '42710' … }` objects (vector extension / drizzle schema already exist) that look like failures → ignore them; success = final `✓ migrations applied` line (evidence: server/src/db/migrate.ts)
 - 2026-11-19 — Whole API process died with a raw `GitError … Repository not found` after Refresh on the seeded fake repo `acme/payments-api` → cause was an unhandled rejection of `EnqueuedJob.done` (callers fire-and-forget); keep `done.catch(() => {})` in `JobRunner.enqueue` and NEVER rethrow from a job path nobody awaits (evidence: server/src/platform/jobs.ts#enqueue, server/test/jobs-runner.test.ts)
 - 2026-11-19 — supersedes 2026-11-19 entry on `EnqueuedJob.done`: the `done.catch` fix and `jobs-runner.test.ts` were reverted at user request → crash is STILL present; a failed clone/index job (e.g. Refresh on seeded `acme/payments-api`) kills the API, so restart `./scripts/dev.sh` after it (evidence: server/src/platform/jobs.ts#enqueue)
+- 2026-11-25 — `pnpm test` printed `26 passed | 6 skipped` and exit 0 while Docker was up: every `*.it.test.ts` (incl. conventions/skills) was skipped because `dockerAvailable()` runs `docker info` with a 5 s timeout, which loses under 32 parallel test files → a green `pnpm test` does NOT prove integration tests ran; check for `↓ …it.test.ts` and run `pnpm exec vitest run .it.test` separately (44/44 then) (evidence: server/test/helpers/pg.ts#dockerAvailable)
+- 2026-11-25 — Changed a PR's base on GitHub (main → demo branch), but the review still diffed against `main`: the PR-list sync's `onConflictDoUpdate` sets only title/headSha/status, so `pull_requests.base` keeps the old value (pr_files do refresh on PR detail) → after a base change update `base` in the DB (or add `base` to the conflict `set`), then open the PR once; a base branch the clone doesn't have makes `git diff` fail and the loader falls back to pr_files, which is correct (evidence: server/src/modules/pulls/routes.ts#onConflictDoUpdate, server/src/modules/reviews/diff-loader.ts#loadDiff)
+- 2026-11-25 — supersedes the 2026-11-25 entry on `pull_requests.base` not syncing: fixed — both PR-list sync and `POST /repos/:id/poll` now go through `upsertPullRequests`, whose conflict `set` refreshes base, branch, head sha, additions/deletions, files count, title, status; no manual DB update needed after a retarget (evidence: server/src/modules/_shared/pull-sync.ts, test/integration.it.test.ts "PR re-sync refreshes a retargeted base")
 
 ## Session Notes
 <!-- ### YYYY-MM-DD + 1–3 bullets: what was done, what was decided -->

@@ -52,12 +52,20 @@ export class SkillsRepository implements SkillStore {
     return row ? toSkill(row) : undefined;
   }
 
+  async getByName(workspaceId: string, name: string): Promise<Skill | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
+    return row ? toSkill(row) : undefined;
+  }
+
   async create(workspaceId: string, skill: NewSkill): Promise<Skill> {
     return withNameConflict(skill.name, () =>
       this.db.transaction(async (tx) => {
         const [row] = await tx
           .insert(t.skills)
-          .values({ workspaceId, ...skill, enabled: true, version: 1 })
+          .values({ workspaceId, ...skill, enabled: skill.enabled ?? true, version: 1 })
           .returning();
         await tx.insert(t.skillVersions).values({ skillId: row!.id, version: 1, body: skill.body });
         return toSkill(row!);

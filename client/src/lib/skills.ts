@@ -31,3 +31,8 @@ export function countByType(skills: Skill[]): Record<SkillType, number> {
   for (const sk of skills) counts[sk.type] += 1;
   return counts;
 }
+
+/** Rough token estimate (~4 chars/token) for editor labels; the run trace has exact counts. */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.trim().length / 4);
+}

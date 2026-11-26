@@ -19,6 +19,10 @@ export interface NewSkill {
   type: SkillType;
   body: string;
   source: SkillSource;
+  /** Defaults to true. */
+  enabled?: boolean;
+  /** Evidence paths for an extracted skill (conventions). */
+  evidenceFiles?: string[];
 }
 
 export interface SkillChanges {
@@ -27,11 +31,13 @@ export interface SkillChanges {
   type?: SkillType;
   body?: string;
   enabled?: boolean;
+  evidenceFiles?: string[];
 }
 
 export interface SkillStore {
   list(workspaceId: string): Promise<Skill[]>;
   get(workspaceId: string, id: string): Promise<Skill | undefined>;
+  getByName(workspaceId: string, name: string): Promise<Skill | undefined>;
   /** Insert the skill and its version-1 snapshot. Duplicate name → ConflictError. */
   create(workspaceId: string, skill: NewSkill): Promise<Skill>;
   /**

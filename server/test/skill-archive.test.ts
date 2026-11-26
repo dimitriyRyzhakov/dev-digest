@@ -18,6 +18,7 @@ function demoZip(): Uint8Array {
 const noWrites: SkillStore = {
   list: async () => [],
   get: async () => undefined,
+  getByName: async () => undefined,
   create: async () => {
     throw new Error('preview must not write');
   },
