@@ -34,6 +34,11 @@ Working in `<package>/` → read `<package>/AGENTS.md` first (not every agent lo
 - Starting a milestone feature → README.md#roadmap, then `<package>/specs/`
 - Touching tests or CI → TESTING.md
 - Writing/editing a reviewer agent prompt → docs/agent-prompts/README.md
+- Feature / multi-file change → `planner` agent (read-only, `.claude/agents/planner.md`) → save its plan to
+  `.claude/work/<slug>/plan.md` → after user approval `implementer` agent with that path → `test-writer` →
+  `architecture-reviewer` ∥ security review → `plan-verifier` → `doc-writer` → `self-review`
+  (catalog + permissions: `.claude/agents/README.md`)
+- Documenting a finished feature → `doc-writer` agent (writes only READMEs and `<pkg>/docs/`)
 
 ## Session protocol (engineering-insights skill: `.claude/skills/engineering-insights/SKILL.md`) — MANDATORY
 - Start of EVERY user request, before any code reading, planning or answer: read the
