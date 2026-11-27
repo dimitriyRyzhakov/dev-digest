@@ -1,4 +1,13 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  jsonb,
+  primaryKey,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 
@@ -11,14 +20,17 @@ export const skills = pgTable('skills', {
   description: text('description').notNull(),
   type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
   source: text('source', {
-    enum: ['manual', 'imported_url', 'extracted', 'community'],
+    enum: ['manual', 'imported_url', 'imported_file', 'extracted', 'community'],
   }).notNull(),
   body: text('body').notNull(),
   enabled: boolean('enabled').notNull().default(true),
   version: integer('version').notNull().default(1),
   evidenceFiles: jsonb('evidence_files').$type<string[]>(),
   createdAt: now(),
-});
+}, (t) => ({
+  // One name per workspace: names are how users and imports address a skill.
+  workspaceNameUq: uniqueIndex('skills_workspace_name_uq').on(t.workspaceId, t.name),
+}));
 
 export const skillVersions = pgTable(
   'skill_versions',

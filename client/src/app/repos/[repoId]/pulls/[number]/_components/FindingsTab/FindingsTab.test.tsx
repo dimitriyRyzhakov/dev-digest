@@ -6,12 +6,19 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReviewRecord, RunSummary } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+// FindingsTab is a container: it reads the PR's runs through these hooks.
+const hookState = vi.hoisted(() => ({ prRuns: [] as RunSummary[], activeRuns: [] as { run_id: string }[] }));
+vi.mock("@/lib/hooks/reviews", () => ({
   useDeleteReview: () => ({ mutate: vi.fn(), isPending: false }),
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
   useRunEvents: () => ({ events: [], running: false }),
+  usePrActiveRuns: () => ({ data: hookState.activeRuns }),
+  usePrRuns: () => ({ data: hookState.prRuns }),
+  useCancelRun: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteRun: () => ({ mutate: vi.fn(), isPending: false }),
+  usePrRunsRefresh: () => ({ activeRuns: vi.fn(), history: vi.fn(), reviews: vi.fn() }),
 }));
 
 import { FindingsTab } from "./FindingsTab";
@@ -60,21 +67,10 @@ function run(o: Partial<RunSummary>): RunSummary {
 }
 
 function renderTab(reviews: ReviewRecord[], prRuns: RunSummary[]) {
+  hookState.prRuns = prRuns;
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <FindingsTab
-        prId="pr-1"
-        liveRunIds={[]}
-        reviewRunning={false}
-        lethalTrifecta={[]}
-        runs={reviews}
-        prRuns={prRuns}
-        prCommits={[]}
-        cancelMutation={{ mutate: vi.fn(), isPending: false } as never}
-        onOpenTrace={() => {}}
-        onDelete={() => {}}
-        onRunDone={() => {}}
-      />
+      <FindingsTab prId="pr-1" runs={reviews} prCommits={[]} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -107,5 +103,22 @@ describe("FindingsTab — VerdictBanner cost comes from the review's own run", (
   it("matched run without cost data shows an em dash, not $0.00", () => {
     renderTab([review({ run_id: "r-new" })], [run({ run_id: "r-new", cost_usd: null })]);
     expect(bannerCostTexts()).toEqual(["— · 8.2K→1.3K"]);
+  });
+});
+
+describe("FindingsTab — container states", () => {
+  it("shows the empty state when there are no reviews and nothing is running", () => {
+    hookState.activeRuns = [];
+    renderTab([], []);
+    expect(screen.getByText("No findings yet")).toBeInTheDocument();
+  });
+
+  it("shows live review + in-progress banner while a run is active, no empty state", () => {
+    hookState.activeRuns = [{ run_id: "r-live" }];
+    renderTab([], []);
+    expect(screen.getByText("Live review")).toBeInTheDocument();
+    expect(screen.getByText("Review in progress…")).toBeInTheDocument();
+    expect(screen.queryByText("No findings yet")).not.toBeInTheDocument();
+    hookState.activeRuns = [];
   });
 });

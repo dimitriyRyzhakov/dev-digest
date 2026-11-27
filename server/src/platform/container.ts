@@ -6,6 +6,7 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  SkillArchiveReader,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -29,6 +30,16 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { FflateSkillArchive } from '../adapters/skill-archive/index.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import { ConventionsService } from '../modules/conventions/service.js';
+import {
+  defaultFeatureModel,
+  getFeatureModelOverride,
+} from '../modules/settings/feature-models.js';
+import { readContainedFile } from './contained-read.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -51,6 +62,7 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  skillArchive?: SkillArchiveReader;
 }
 
 export class Container {
@@ -75,6 +87,9 @@ export class Container {
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
+  private _skillArchive?: SkillArchiveReader;
+  private _skillsService?: SkillsService;
+  private _conventionsService?: ConventionsService;
   private _priceBook?: PriceBook;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
@@ -124,6 +139,34 @@ export class Container {
     if (this.overrides.depgraph) return this.overrides.depgraph;
     this._depgraph ??= new DepCruiseGraph();
     return this._depgraph;
+  }
+
+  /** In-memory zip reader for skill import (never writes to disk, never executes). */
+  get skillArchive(): SkillArchiveReader {
+    if (this.overrides.skillArchive) return this.overrides.skillArchive;
+    return (this._skillArchive ??= new FflateSkillArchive());
+  }
+
+  /** Skills use cases (M2), wired with their ports. */
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({
+      store: new SkillsRepository(this.db),
+      archive: this.skillArchive,
+    }));
+  }
+
+  /** Conventions extractor use cases (M2), wired with their ports. */
+  get conventionsService(): ConventionsService {
+    return (this._conventionsService ??= new ConventionsService({
+      store: new ConventionsRepository(this.db),
+      skills: this.skillsService,
+      samples: (repoId, n) => this.repoIntel.getConventionSamples(repoId, n),
+      readFile: readContainedFile,
+      resolveModel: async (workspaceId) =>
+        (await getFeatureModelOverride(this, workspaceId, 'conventions')) ??
+        defaultFeatureModel('conventions'),
+      llm: (provider) => this.llm(provider),
+    }));
   }
 
   /** Token counter (js-tiktoken) for the repo-map budget search. */

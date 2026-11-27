@@ -1,0 +1,67 @@
+From d0e4f251bff8f0bfa1b13b250d662d7e20477f19 Mon Sep 17 00:00:00 2001
+From: DevDigest Demo <demo@example.com>
+Date: Tue, 24 Nov 2026 12:00:00 +0000
+Subject: [PATCH] refactor(users): clearer param and field names
+
+---
+ src/routes/users.ts | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+index f99e914..f97f9cf 100644
+--- a/src/routes/users.ts
++++ b/src/routes/users.ts
+@@ -2,32 +2,32 @@ import type { FastifyInstance } from 'fastify';
+ 
+ export interface User {
+   id: string;
+-  name: string;
++  fullName: string;
+   email: string;
+ }
+ 
+ const users = new Map<string, User>([
+-  ['1', { id: '1', name: 'Ada Lovelace', email: 'ada@example.com' }],
+-  ['2', { id: '2', name: 'Alan Turing', email: 'alan@example.com' }],
++  ['1', { id: '1', fullName: 'Ada Lovelace', email: 'ada@example.com' }],
++  ['2', { id: '2', fullName: 'Alan Turing', email: 'alan@example.com' }],
+ ]);
+ 
+ export async function usersRoutes(app: FastifyInstance): Promise<void> {
+-  app.get<{ Params: { id: string } }>(
+-    '/users/:id',
++  app.get<{ Params: { userId: string } }>(
++    '/users/:userId',
+     {
+       schema: {
+         params: {
+           type: 'object',
+-          required: ['id'],
+-          properties: { id: { type: 'string' } },
++          required: ['userId'],
++          properties: { userId: { type: 'string' } },
+         },
+         response: {
+           200: {
+             type: 'object',
+-            required: ['id', 'name', 'email'],
++            required: ['id', 'fullName', 'email'],
+             properties: {
+               id: { type: 'string' },
+-              name: { type: 'string' },
++              fullName: { type: 'string' },
+               email: { type: 'string' },
+             },
+           },
+@@ -39,9 +39,9 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
+       },
+     },
+     async (req, reply) => {
+-      const user = users.get(req.params.id);
++      const user = users.get(req.params.userId);
+       if (!user) return reply.code(404).send({ error: 'user not found' });
+-      return { id: user.id, name: user.name, email: user.email };
++      return { id: user.id, fullName: user.fullName, email: user.email };
+     },
+   );
+ }

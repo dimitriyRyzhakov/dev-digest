@@ -8,6 +8,8 @@
  * not yet exported, add a placeholder below marked
  * `// TODO: reconcile with @devdigest/shared`.
  */
+import type { Agent } from "@devdigest/shared";
+
 export type {
   Settings,
   SettingsUpdate,
@@ -33,6 +35,49 @@ export type {
 
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";
 export type { PrBrief, SmartDiff } from "@devdigest/shared";
+export type {
+  Skill,
+  SkillType,
+  SkillSource,
+  SkillInput,
+  SkillPatch,
+  SkillImportPreview,
+  AgentSkillLink,
+  SkillBlock,
+  SkillVersion,
+  SkillStats,
+} from "@devdigest/shared";
+export type {
+  ConventionCandidate,
+  ConventionStatus,
+  ConventionList,
+  ConventionPatch,
+  ConventionExtractResult,
+  ConventionSkillInput,
+} from "@devdigest/shared";
+
+/** One entry of an agent's ordered skill set — POST /agents/:id/skills `links` (order = index). */
+export interface AgentSkillLinkInput {
+  skill_id: string;
+  enabled: boolean;
+}
+
+/** Editable agent fields — PATCH /agents/:id body (useUpdateAgent, Config tab form). */
+export type AgentPatch = Partial<
+  Pick<
+    Agent,
+    | "name"
+    | "description"
+    | "provider"
+    | "model"
+    | "system_prompt"
+    | "output_schema"
+    | "strategy"
+    | "ci_fail_on"
+    | "repo_intel"
+    | "enabled"
+  >
+>;
 
 /** UI-only view model for a PR list row (derives display fields from PrMeta). */
 export interface PrRowView {

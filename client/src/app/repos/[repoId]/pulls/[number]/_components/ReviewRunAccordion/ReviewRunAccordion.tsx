@@ -6,11 +6,12 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
-import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
+import { useDeleteReview } from "@/lib/hooks/reviews";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -46,6 +47,7 @@ export function ReviewRunAccordion({
    *  banner's cost · tokens line. Null when unknown (e.g. run deleted). */
   run?: RunSummary | null;
 }) {
+  const tTab = useTranslations("prReview.findingsTab");
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -53,7 +55,7 @@ export function ReviewRunAccordion({
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // targetNonce re-triggers the scroll when the same run is clicked twice.
   }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
@@ -118,8 +120,8 @@ export function ReviewRunAccordion({
             }
           }}
           disabled={del.isPending}
-          title="Delete this review run"
-          aria-label="Delete this review run"
+          title={tTab("deleteReviewRun")}
+          aria-label={tTab("deleteReviewRun")}
           style={{
             background: "none",
             border: "none",

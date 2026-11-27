@@ -31,12 +31,18 @@ model. `review/run.ts` orchestrates the run (single-pass by default).
 The engine also accepts optional prompt slots the **later milestones** start
 feeding it — `skills` (M2), `memory` (M7), `specs` (M5), `callers` — plus a
 `reduce()`/map-reduce path and a `toReview()` CI payload helper used from M6.
-In the starter the server passes only the diff, system prompt, and repo map; the
-extra slots are omitted, so `assemblePrompt` simply leaves those sections out.
+Empty slots are omitted, so `assemblePrompt` simply leaves those sections out.
+
+**Skills (M2)** are `PromptSkill { name, description, body }[]`, already filtered
+to the agent's enabled links and in link order. They are rendered into the
+**system** message: agent prompt → `## Skills (apply in order)` → injection guard
+(always last). `renderSkillBlock` / `renderSkillsBlock` are exported so the
+server can count tokens per skill for the run trace.
+Spec: [specs/M2-skills-in-system-prompt.md](specs/M2-skills-in-system-prompt.md).
 
 ## Public API
 
-Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
+Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` / `renderSkillsBlock` / `renderSkillBlock` (prompt),
 `groundFindings` / `groundingSummary` (grounding), `toJsonSchema` / `extractJson`
 / `parseWithRepair` (structured output), plus the `run` entrypoint and
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from

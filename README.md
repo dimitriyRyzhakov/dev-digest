@@ -73,6 +73,10 @@ Each package has its own README with deeper diagrams:
 - **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).
 - **Run a review** — single-pass analysis returning structured findings (severity + score), with the grounding gate and repo-map context working from the start.
 
+**Added in M2 (Skills):** built-in agents now also include **Test Quality Reviewer** and
+**API Contract Reviewer**. Skills (reusable review instructions) are managed at `/skills` and
+linked per agent on its Skills tab; the source of each built-in skill is in [`docs/skills/`](docs/skills/).
+
 ## Roadmap
 
 These are intentionally **not** in the starter — each milestone adds one back:

@@ -1,0 +1,120 @@
+From c376a95840597669070820b44ed2a093416b9082 Mon Sep 17 00:00:00 2001
+From: DevDigest Demo <demo@example.com>
+Date: Tue, 24 Nov 2026 12:00:00 +0000
+Subject: [PATCH] chore: demo project with users route
+
+---
+ README.md           | 10 ++++++++++
+ package.json        | 17 ++++++++++++++++
+ src/routes/users.ts | 47 +++++++++++++++++++++++++++++++++++++++++++++
+ src/server.ts       |  6 ++++++
+ 4 files changed, 80 insertions(+)
+ create mode 100644 README.md
+ create mode 100644 package.json
+ create mode 100644 src/routes/users.ts
+ create mode 100644 src/server.ts
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..71a1bef
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,10 @@
++# devdigest-skills-demo
++
++Tiny Fastify + Vitest project used as the target repo for the DevDigest skills control
++experiment.
++
++```bash
++npm install
++npm test
++npm start   # GET http://localhost:3000/users/1
++```
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000..3775148
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,17 @@
++{
++  "name": "devdigest-skills-demo",
++  "private": true,
++  "type": "module",
++  "scripts": {
++    "start": "tsx src/server.ts",
++    "test": "vitest run"
++  },
++  "dependencies": {
++    "fastify": "^5.0.0"
++  },
++  "devDependencies": {
++    "tsx": "^4.19.0",
++    "typescript": "^5.6.0",
++    "vitest": "^2.1.0"
++  }
++}
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+new file mode 100644
+index 0000000..f99e914
+--- /dev/null
++++ b/src/routes/users.ts
+@@ -0,0 +1,47 @@
++import type { FastifyInstance } from 'fastify';
++
++export interface User {
++  id: string;
++  name: string;
++  email: string;
++}
++
++const users = new Map<string, User>([
++  ['1', { id: '1', name: 'Ada Lovelace', email: 'ada@example.com' }],
++  ['2', { id: '2', name: 'Alan Turing', email: 'alan@example.com' }],
++]);
++
++export async function usersRoutes(app: FastifyInstance): Promise<void> {
++  app.get<{ Params: { id: string } }>(
++    '/users/:id',
++    {
++      schema: {
++        params: {
++          type: 'object',
++          required: ['id'],
++          properties: { id: { type: 'string' } },
++        },
++        response: {
++          200: {
++            type: 'object',
++            required: ['id', 'name', 'email'],
++            properties: {
++              id: { type: 'string' },
++              name: { type: 'string' },
++              email: { type: 'string' },
++            },
++          },
++          404: {
++            type: 'object',
++            properties: { error: { type: 'string' } },
++          },
++        },
++      },
++    },
++    async (req, reply) => {
++      const user = users.get(req.params.id);
++      if (!user) return reply.code(404).send({ error: 'user not found' });
++      return { id: user.id, name: user.name, email: user.email };
++    },
++  );
++}
+diff --git a/src/server.ts b/src/server.ts
+new file mode 100644
+index 0000000..5ba2022
+--- /dev/null
++++ b/src/server.ts
+@@ -0,0 +1,6 @@
++import Fastify from 'fastify';
++import { usersRoutes } from './routes/users.js';
++
++const app = Fastify({ logger: true });
++await app.register(usersRoutes);
++await app.listen({ port: 3000 });

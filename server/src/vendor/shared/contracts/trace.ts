@@ -36,9 +36,21 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+/** One skill sent in the system message (M2): what it cost in tokens. */
+export const SkillBlock = z.object({
+  skill_id: z.string(),
+  name: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+});
+export type SkillBlock = z.infer<typeof SkillBlock>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
+  /** Rendered skills section (part of `system`); null when no skill was sent. */
   skills: z.string().nullish(),
+  /** Per-skill breakdown of `skills`, in prompt order. Nullish: pre-M2 traces lack it. */
+  skill_blocks: z.array(SkillBlock).nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
   /** Callers-of-changed-symbols digest (T1.3); null when absent. */

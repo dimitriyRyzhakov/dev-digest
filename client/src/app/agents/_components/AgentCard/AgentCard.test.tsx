@@ -3,7 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@devdigest/shared";
-import messages from "../../../../../messages/en/agents.json";
+import messages from "@messages/en/agents.json";
 import { AgentCard } from "./AgentCard";
 
 afterEach(cleanup);
@@ -40,6 +40,14 @@ describe("AgentCard (smoke)", () => {
     expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("3 skills")).toBeInTheDocument();
+  });
+
+  it("pluralises the skill count for 0 and 1", () => {
+    renderWithIntl(<AgentCard ag={AGENT} skillCount={0} />);
+    expect(screen.getByText("No skills")).toBeInTheDocument();
+    cleanup();
+    renderWithIntl(<AgentCard ag={AGENT} skillCount={1} />);
+    expect(screen.getByText("1 skill")).toBeInTheDocument();
   });
 
   it("falls back to a translated placeholder when description is empty", () => {
