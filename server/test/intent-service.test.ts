@@ -312,3 +312,95 @@ describe('IntentService.get', () => {
     await expect(service.get('w', 'other')).rejects.toThrow('Pull request not found');
   });
 });
+
+/**
+ * Acceptance checks that used to be done by hand on a live PR (M3 verification):
+ * separate intent model, no change bodies in the classifier request, linked specs
+ * really sent, and a Live Log that shows the prompt composition without code or
+ * secrets. The live-model counterpart is `pnpm intent:smoke <prId>`.
+ */
+describe('IntentService — acceptance (automated manual checks)', () => {
+  const CODE_SECRET = 'sk_live_ACCEPTANCE_123';
+  const BODY_SECRET = 'ghp_ACCEPTANCETOKEN000000000000000000';
+  const rawDiff = [
+    'diff --git a/src/config.ts b/src/config.ts',
+    '--- a/src/config.ts',
+    '+++ b/src/config.ts',
+    '@@ -10,3 +10,5 @@',
+    '   port: 3000,',
+    `+  stripeKey: "${CODE_SECRET}",`,
+    '+  const limiter = createRateLimiter({ windowMs: 60_000, max: 100 });',
+    '   redisUrl: x,',
+    'diff --git a/package.json b/package.json',
+    '--- a/package.json',
+    '+++ b/package.json',
+    '@@ -1,3 +1,4 @@',
+    '   "dependencies": {',
+    '+    "ioredis": "^5.0.0",',
+    '   }',
+  ].join('\n');
+  const body =
+    'Adds rate limiting to the public API so abusive clients get throttled before they hit the database. ' +
+    `See the plan in specs/M3-x.md and [design](docs/design.md). Local token for repro: ${BODY_SECRET}`;
+  const specs = {
+    'specs/M3-x.md': '# M3 plan\nIn scope: public API limiter.\nOut of scope: admin endpoints.',
+    'docs/design.md': '# Design\nToken bucket per API key.',
+  };
+
+  async function run() {
+    const ctx = setup({ body, filesAtSha: specs });
+    const diff = await new MockGitClient({ diff: rawDiff }).diff();
+    const log = new MemoryLog();
+    const r = await ctx.service.resolveForReview({ workspaceId: 'w', pull: ctx.pull, repo: ctx.repo, diff, log });
+    const call = ctx.llm.calls.find((c) => c.method === 'completeStructured')!;
+    const req = call.req as { model: string; messages: { role: string; content: string }[] };
+    const request = req.messages.map((m) => m.content).join('\n');
+    return { ...ctx, r, log, req, request, diff };
+  }
+
+  it('classifies with the resolved review_intent model (not the review agent model)', async () => {
+    const { req, r } = await run();
+    expect(req.model).toBe('deepseek/deepseek-v4-flash');
+    expect(r).toMatchObject({ provider: 'openrouter', model: 'deepseek/deepseek-v4-flash' });
+  });
+
+  it('sends no change bodies: no hunks, no added code lines, no secrets from the diff — only paths', async () => {
+    const { request, diff } = await run();
+    expect(request).not.toMatch(/^diff --git|^@@ |^\+\+\+ |^--- a\//m);
+    const addedCode = diff.raw
+      .split('\n')
+      .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
+      .map((l) => l.slice(1).trim());
+    for (const line of addedCode) expect(request).not.toContain(line);
+    expect(request).not.toContain(CODE_SECRET);
+    // Paths are the only diff-derived input.
+    expect(request).toContain('<untrusted source="changed-paths">\nsrc/config.ts\npackage.json');
+  });
+
+  it('really sends every spec/plan linked from the description, with its content', async () => {
+    const { request, r } = await run();
+    for (const [path, content] of Object.entries(specs)) {
+      expect(request).toContain(`<untrusted source="spec:${path}">\n${content}`);
+    }
+    expect(r.sources.filter((s) => s.kind === 'spec').map((s) => s.ref).sort()).toEqual(['docs/design.md', 'specs/M3-x.md']);
+    expect(r.documented).toBe(true);
+  });
+
+  it('Live Log shows the prompt composition without code, PR text or secrets', async () => {
+    const { log } = await run();
+    const text = log.text();
+    // Composition is visible: sources, each spec read, model call, result.
+    expect(text).toMatch(/^Intent: sources — title · description \d+ chars · 0 ticket ref\(s\) · 2 spec link\(s\)/m);
+    expect(text).toContain('Intent: spec specs/M3-x.md read @a1b2c3d');
+    expect(text).toContain('Intent: spec docs/design.md read @a1b2c3d');
+    expect(text).toContain('Classifying intent with openrouter/deepseek/deepseek-v4-flash');
+    expect(text).toMatch(/Intent: feat · confidence \w+ /);
+    // …but no code, raw PR text or secrets.
+    expect(text).not.toMatch(/^(diff --git|@@ |[+-] )/m);
+    expect(text).not.toContain('createRateLimiter');
+    expect(text).not.toContain(CODE_SECRET);
+    expect(text).not.toContain(BODY_SECRET);
+    expect(text).not.toContain('abusive clients');
+    expect(text).not.toContain('Token bucket per API key');
+  });
+});

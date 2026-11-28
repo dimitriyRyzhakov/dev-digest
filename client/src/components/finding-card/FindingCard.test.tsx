@@ -49,6 +49,18 @@ describe("FindingCard (smoke, both themes)", () => {
     });
   });
 
+  it("inline hides the file:line meta row; collapsed card is the title row only", () => {
+    renderWithIntl(<FindingCard f={FINDING} inline onAction={() => {}} />);
+    expect(screen.getByText("Hardcoded Stripe secret key")).toBeInTheDocument();
+    expect(screen.queryByText("src/config.ts:11")).toBeNull();
+    expect(screen.queryByText("Accept")).toBeNull();
+  });
+
+  it("default (not inline) keeps the file:line meta row", () => {
+    renderWithIntl(<FindingCard f={FINDING} onAction={() => {}} />);
+    expect(screen.getByText("src/config.ts:11")).toBeInTheDocument();
+  });
+
   it("fires accept/dismiss actions", () => {
     const onAction = vi.fn();
     renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={onAction} />);

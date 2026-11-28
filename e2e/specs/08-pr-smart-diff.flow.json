@@ -1,0 +1,23 @@
+{
+  "name": "PR Files changed tab groups files by role (Smart Diff) and toggles to original order",
+  "description": "From PR #482, open the Files changed tab: the reviewer-ordered diff shows the Core group (seeded src/** files classify as core), then switching to Original order shows the flat GitHub list with a seeded file path. Model-free (GET /pulls/:id/smart-diff is a deterministic classifier), works before any review. Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Files changed"], "label": "PR tabs are visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "switch to the Files changed tab" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
+    { "cmd": ["wait", "--text", "Reviewer-ordered diff"], "label": "Smart Diff header renders" },
+    { "cmd": ["wait", "--text", "The substance of the change"], "label": "Core group header renders (smart order is the default)" },
+    { "cmd": ["wait", "--text", "Boilerplate"], "label": "all five groups render, incl. empty ones" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded finding card renders in the diff (visible by default when open findings exist)" },
+    { "cmd": ["wait", "--text", "outside the shown diff"], "label": "seeded src/config.ts has no patch, so its finding sits in the unmatched block at the file end" },
+    { "cmd": ["wait", "--text", "Original order"], "label": "order toggle is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch to GitHub's original order" },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "a seeded file renders in the flat list" }
+  ]
+}

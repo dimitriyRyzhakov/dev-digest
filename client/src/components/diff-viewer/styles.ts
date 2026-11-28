@@ -81,6 +81,30 @@ export function lineRowFor(kind: Line["kind"]): CSSProperties {
   return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
 }
 
+/** Severity dot in the file header — marks a file with open findings (no number). */
+export function findingDotFor(color: string): CSSProperties {
+  return { width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 };
+}
+
+/** 3px severity stripe on a line that hosts open findings (inset: no layout shift). */
+export function findingStripeFor(color: string | null): CSSProperties {
+  return color ? { boxShadow: `inset 3px 0 0 ${color}` } : {};
+}
+
+/** Right-aligned severity label ("blocker", "warning", …) on a finding line. */
+export function severityLabelFor(color: string): CSSProperties {
+  return {
+    flexShrink: 0,
+    alignSelf: "center",
+    paddingRight: 12,
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    color,
+  };
+}
+
 /** Gutter sign colour per line kind. */
 export function lineSignFor(kind: Line["kind"]): CSSProperties {
   return {

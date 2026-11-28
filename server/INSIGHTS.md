@@ -13,6 +13,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 ## What Doesn't Work
 <!-- dead ends and antipatterns, with why — the most valuable section -->
 - 2026-11-28 — Ref/link regexes run on the full untrusted PR body (GitHub allows ~65k chars): an unanchored `([\w.-]+)\/([\w.-]+)#(\d+)` and `\]\(([^)\s>]+)` went quadratic and blocked the single Fastify event loop ~30 s per review run → clip text before any regex (`INTENT_LIMITS.parseChars` / `bodyParseChars`), add a left lookbehind + bounded quantifiers, and keep a 65k adversarial-body test with a time budget (evidence: server/src/modules/intent/domain.ts#parseTicketRefs, test/intent-domain.test.ts "ReDoS guard")
+- 2026-11-28 — Live check "no diff code in the intent request" first matched every added diff line against the whole request → 24 false leaks, because linked specs (meant to be sent) quote the same code (`PromptIntent` fields, tables) → strip the author-document blocks (`pr-title`, `pr-description`, `ticket-N`, `spec:*`) first and look for diff code only in the rest (header, branch, commits, paths) (evidence: server/src/scripts/intent-smoke.ts#payload)
 
 ## Codebase Patterns
 <!-- conventions and architecture decisions, with the reason -->
@@ -30,6 +31,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 - 2026-11-25 — `pnpm db:generate` failed with `Interactive prompts require a TTY terminal` when a schema change dropped one column and added another (drizzle-kit asks "rename?") → generate in two steps: first add the new columns while keeping the old one (hand-append the backfill `UPDATE` to that NEW migration), then drop the old column and generate again (evidence: server/src/db/migrations/0013_conventions_status.sql, 0014_conventions_drop_accepted.sql)
 - 2026-11-28 — A Zod schema with `.default()` fields passed to `llm.completeStructured` types `res.data` from the schema INPUT, so defaulted arrays/booleans come back as `T | undefined` → restate them in the service (`res.data.signals ?? []`); the parse already filled them at runtime (evidence: server/src/modules/intent/service.ts#resolveForReview)
 - 2026-11-28 — `git ls-tree <sha> -- <path>` prints non-ASCII paths C-quoted (`"docs/\320\277…"`) under the default `core.quotePath`, so comparing its path column to the requested path silently refused every Cyrillic spec name → parse git path output with `-z` (or `-c core.quotePath=false`), never compare the quoted form (evidence: server/src/adapters/git/simple-git.ts#showFile, test/git-adapter-safety.test.ts "non-ASCII (Cyrillic) name")
+- 2026-11-28 — Allowing a module's domain.ts to import only its OWN `constants.ts` in `.dependency-cruiser.cjs` → capture the module in `from.path` (`^src/modules/([^/]+)/domain\.ts$`) and use `$1` in `to.pathNot`; it works with a `from.path` array (other alternatives leave `$1` literal, so they never match), verified by a probe import of `reviews/constants` failing `domain-pure` (evidence: server/.dependency-cruiser.cjs#domain-pure)
 
 ## Recurring Errors & Fixes
 <!-- error message → fix -->

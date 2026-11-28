@@ -25,11 +25,13 @@ clarifying questions instead of guessing.
 |---|---|---|---|---|
 | planner | Read, Grep, Glob | Write, Edit, NotebookEdit, Bash, Agent, Skill, WebSearch, WebFetch | onion-architecture, fastify-best-practices, drizzle-orm-patterns, frontend-architecture, react-best-practices, next-best-practices, zod | — (read-only by tool set) |
 | implementer | Read, Edit, Write, Bash, Grep, Glob, Skill | Agent, WebSearch, WebFetch, NotebookEdit | same 7 as planner + engineering-insights | PreToolUse hook [`hooks/implementer-guard.mjs`](hooks/implementer-guard.mjs) |
-| researcher | Read, Grep, Glob, Bash (read-only commands only), WebSearch, WebFetch | Write, Edit, NotebookEdit, Skill, Agent | — | — (read-only by rule) |
+| researcher | Read, Grep, Glob, Bash (allowlist), WebSearch, WebFetch | Write, Edit, NotebookEdit, Skill, Agent | — | [`hooks/readonly-bash-guard.mjs`](hooks/readonly-bash-guard.mjs) on Bash / Read / Grep |
 | test-writer | Read, Edit, Write, Bash, Grep, Glob, Skill | Agent, WebSearch, WebFetch, NotebookEdit | react-testing-library, frontend-architecture, react-best-practices, next-best-practices, onion-architecture, engineering-insights | [`hooks/test-writer-guard.mjs`](hooks/test-writer-guard.mjs) on Bash / Edit / Write / MultiEdit; `maxTurns: 60` |
 | architecture-reviewer | Read, Grep, Glob, Bash (allowlist) | Write, Edit, NotebookEdit, Skill, Agent, WebSearch, WebFetch | onion-architecture, fastify-best-practices, drizzle-orm-patterns, frontend-architecture, next-best-practices | [`hooks/readonly-bash-guard.mjs`](hooks/readonly-bash-guard.mjs) on Bash / Read / Grep; `maxTurns: 40` |
 | plan-verifier | Read, Grep, Glob, Bash (allowlist) | Write, Edit, NotebookEdit, Skill, Agent, WebSearch, WebFetch | — (reads a SKILL.md section only when a plan constraint cites it) | [`hooks/readonly-bash-guard.mjs`](hooks/readonly-bash-guard.mjs) on Bash / Read / Grep; `maxTurns: 60` |
 | doc-writer | Read, Grep, Glob, Edit, Write | Bash, Agent, Skill, WebSearch, WebFetch, NotebookEdit | mermaid-diagram | [`hooks/doc-writer-guard.mjs`](hooks/doc-writer-guard.mjs) on Edit / Write / MultiEdit |
+
+Invariant (tested by [`hooks/agents-config.test.mjs`](hooks/agents-config.test.mjs)): every agent with `Write` + `Edit` in `disallowedTools` that has Bash runs `readonly-bash-guard.mjs` on Bash / Read / Grep — Bash without the guard can still write (`>`, `rm`, `sed -i`, `node -e`).
 
 `implementer-guard.mjs` (on Bash / Edit / Write) blocks with exit 2, and a block is final
 (unparsable hook input is blocked too — fails closed):

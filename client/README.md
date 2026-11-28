@@ -64,6 +64,12 @@ prompt. The run trace's Prompt assembly lists each skill sent with its version a
 
 Spec: [specs/M3-intent-layer.md](specs/M3-intent-layer.md).
 
+## Smart Diff in Files changed (M3)
+
+The Files changed tab groups files by role (core, tests, wiring, docs, boilerplate) from
+`GET /pulls/:id/smart-diff` (`usePrSmartDiff`), with a Smart/Original toggle, and shows the latest
+review findings inline. Details: [docs/smart-diff-files-changed.md](docs/smart-diff-files-changed.md).
+
 Cross-cutting chrome lives in `src/components/app-shell` (nav, breadcrumbs,
 `g`-then-key shortcuts). Pages are thin; feature logic sits in colocated
 `_components/<Name>/` folders, each with its own `*.test.tsx`.

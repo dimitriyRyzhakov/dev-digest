@@ -117,7 +117,13 @@ export function PrDetailView({ repoId, number }: { repoId: string; number: numbe
         )}
 
         {tab === "diff" && (
-          <DiffTab prId={prId} filesCount={pr.files_count} files={pr.files} canComment={pr.status === "open"} />
+          <DiffTab
+            prId={prId}
+            files={pr.files}
+            canComment={pr.status === "open"}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+          />
         )}
       </div>
 

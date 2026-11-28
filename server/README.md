@@ -71,6 +71,7 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent (M3)<br/>/pulls/:id/intent"]
+    smartDiff["smart-diff (M3)<br/>/pulls/:id/smart-diff"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
@@ -157,6 +158,17 @@ fails the review.
 
 Details (sources, call sequence, confidence rule, caching, trust model, Live Log lines):
 [docs/intent-layer.md](docs/intent-layer.md). Spec: [specs/M3-intent-layer.md](specs/M3-intent-layer.md).
+
+## Smart Diff (M3)
+
+`modules/smart-diff/` groups a PR's files by reviewer role without a model call, so it works
+before the first review run.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/pulls/:id/smart-diff` | `SmartDiff`: always five groups (`core`, `tests`, `wiring`, `docs`, `boilerplate`), `finding_lines` per file; 404 outside the workspace |
+
+Rules, data flow and precedence cases: [docs/smart-diff.md](docs/smart-diff.md).
 
 ## Review context (non-obvious)
 

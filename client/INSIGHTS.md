@@ -19,11 +19,13 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 - 2026-11-24 — Editing an entity (skill, agent) in a modal or side drawer was rejected by the user → follow the Agents screen: grid at `/<entity>`, then `/<entity>/:id` with the list on the left and the editor inline on the right; create/import are routes in the same frame (`/new`, `/import`), never popups (evidence: client/src/app/skills/_components/SkillsWorkspace, client/src/app/agents/[id]/_components/AgentDetailView)
 - 2026-11-24 — Card text in a sidebar list spilled past the column although the text was `nowrap`+`ellipsis` → a grid track defaults to `min-width:auto`, so one long line widens the card; set `gridTemplateColumns: "minmax(0, 1fr)"` on the list and `minWidth: 0` on the card, then wrap/clamp the text (evidence: client/src/app/skills/_components/SkillsWorkspace/styles.ts#sidebarList)
+- 2026-11-28 — Sticky elements on the PR page: the scroll container is AppFrame's `<main overflow:auto>` and `PrDetailHeader` is already `sticky top:0` with a variable height, so `top:0` slides under it → use `top: "var(--pr-header-h, 0px)"` and a zIndex below 5; the var is published on `<main>` by `PrDetailHeader/useStickyOffset` (ResizeObserver) (evidence: client/src/app/repos/[repoId]/pulls/[number]/_components/SmartDiffGroup/styles.ts#s.header)
 
 ## Tool & Library Notes
 <!-- dependency / CLI quirks -->
 - 2026-11-24 — eslint-plugin-boundaries v5 ships no rule docs in its README and silently passes a mis-set element map → after editing `client/eslint.config.mjs`, prove each rule fires: `printf 'import { AppShell } from "@/components/app-shell";\n' | pnpm exec eslint --stdin --stdin-filename src/lib/probe.ts` must report `boundaries/element-types` (evidence: client/eslint.config.mjs)
 - 2026-11-24 — `pnpm build` prints `Warning: Next.js inferred your workspace root, but it may not be correct` → harmless: repo has one lockfile per package (no workspace) by design; build still exits 0, don't chase it unless output tracing breaks (fix then: `outputFileTracingRoot` in next.config) (evidence: client/next.config.mjs, AGENTS.md#Packages)
+- 2026-11-28 — RTL tests: `@testing-library/user-event` is NOT a client dependency (the react-testing-library skill assumes it) → use `fireEvent.click` from `@testing-library/react`, don't add the package for one test (evidence: client/package.json, client/src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.test.tsx)
 
 ## Recurring Errors & Fixes
 <!-- error message → fix -->

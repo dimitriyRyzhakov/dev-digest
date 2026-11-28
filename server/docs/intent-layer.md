@@ -169,6 +169,18 @@ All lines are prefixed `Intent` and appear in every run's Live Log and in the pe
 - If `Loading PR diff` fails, the intent step is never attempted.
 - The classifier call uses `temperature: 0` and `maxRetries: 1`. Its cost is stored in `pr_intent.cost_usd`, separate from the agent runs' cost.
 
+## Verifying it
+
+- Hermetic (in `pnpm test`): `test/intent-service.test.ts` › "acceptance" — the classifier uses the
+  resolved `review_intent` model; the request carries no hunks, added code or secrets from the diff
+  (paths only); every spec linked from the description is sent with its content; Live Log lines show
+  the prompt composition without code, PR text or secrets.
+- Live (opt-in, real model): `pnpm intent:smoke <prId> [--fresh]` (`src/scripts/intent-smoke.ts`)
+  runs the real service on a synced PR, records the exact request and prints PASS/FAIL for model,
+  payload (outside the author's own documents), specs, log and the review-prompt block, plus the
+  summary/scope for the one human check: does the card describe the PR's purpose? `--fresh` drops the
+  cached row so the model is really called; exit code 1 on any FAIL.
+
 ## Storage and API
 
 The `pr_intent` columns are defined in [reviews.ts](../src/db/schema/reviews.ts#prIntent) and added by migration [0017_groovy_ego.sql](../src/db/migrations/0017_groovy_ego.sql). `GET /pulls/:id/intent` returns `{ intent: PrIntentRecord | null }`: `null` until a review has run, 404 when the PR is outside the workspace. There is no recompute route.

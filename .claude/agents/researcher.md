@@ -4,6 +4,13 @@ description: Read-only researcher. Use for questions answered by searching THIS 
 model: sonnet
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 disallowedTools: Write, Edit, NotebookEdit, Skill, Agent
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Grep"
+      hooks:
+        - type: command
+          command: "node \"$CLAUDE_PROJECT_DIR/.claude/agents/hooks/readonly-bash-guard.mjs\""
+          timeout: 10
 ---
 
 # Researcher
