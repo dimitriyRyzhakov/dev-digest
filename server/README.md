@@ -70,6 +70,7 @@ flowchart TB
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    intent["intent (M3)<br/>/pulls/:id/intent"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
@@ -138,6 +139,24 @@ the `conventions` feature model is called **once** (`schemaName: ConventionExtra
 and every candidate is grounded by code (`readContainedFile` + `locateSnippet`) before
 it is stored; the rest only count as `dropped`. A re-scan keeps accepted candidates.
 Spec: [specs/M2-conventions.md](specs/M2-conventions.md).
+
+## Intent layer (M3)
+
+`modules/intent/` classifies why a PR exists before the agents run. A review run resolves the
+intent once, after `Loading PR diff`, and shares it with every agent. Inputs are picked by code
+(title, description, up to 3 same-repo issues, up to 3 spec files read at the head sha, plus
+branch, commits and changed paths); the `review_intent` feature model is called once
+(`schemaName: PrIntentClassification`) and skipped on a cache hit by input hash. Code grounds the
+signals, computes the confidence and derives risk areas. The result is stored in `pr_intent` and
+reaches the reviewer prompt as an untrusted-wrapped `## PR intent` block. An intent failure never
+fails the review.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/pulls/:id/intent` | `{ intent: PrIntentRecord \| null }`; `null` until a review ran; 404 outside the workspace |
+
+Details (sources, call sequence, confidence rule, caching, trust model, Live Log lines):
+[docs/intent-layer.md](docs/intent-layer.md). Spec: [specs/M3-intent-layer.md](specs/M3-intent-layer.md).
 
 ## Review context (non-obvious)
 

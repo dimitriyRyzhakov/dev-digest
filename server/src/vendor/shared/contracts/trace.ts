@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  IntentCategory,
+  IntentConfidenceLevel,
+  IntentRiskArea,
+  IntentSource,
+  IntentUnresolvedRef,
+} from './brief.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -60,6 +67,8 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** Rendered PR-intent block (M3); null/absent when no intent was sent. */
+  intent: z.string().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
@@ -81,6 +90,26 @@ export const RunStats = z.object({
 });
 export type RunStats = z.infer<typeof RunStats>;
 
+/** The PR intent a run used (M3), as recorded in its trace. */
+export const IntentTraceSnapshot = z.object({
+  category: IntentCategory,
+  confidence: z.number(),
+  confidence_level: IntentConfidenceLevel,
+  breaking: z.boolean(),
+  summary: z.string(),
+  /** True when the intent came from the pr_intent cache (no model call). */
+  cached: z.boolean(),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  cost_usd: z.number().nullish(),
+  input_hash: z.string().nullish(),
+  sources: z.array(IntentSource),
+  unresolved_refs: z.array(IntentUnresolvedRef),
+  /** Nullish: traces written before risk areas existed lack it. */
+  risk_areas: z.array(IntentRiskArea).nullish(),
+});
+export type IntentTraceSnapshot = z.infer<typeof IntentTraceSnapshot>;
+
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
   config: z.object({
@@ -97,6 +126,8 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  /** PR intent used by this run (M3); nullish so pre-M3 traces still parse. */
+  intent: IntentTraceSnapshot.nullish(),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;

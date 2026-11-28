@@ -13,6 +13,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import type { IntentPullInput, IntentRepoInput, PrIntentResolver, ResolvedPrIntent } from './ports.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -41,15 +42,17 @@ export type RunOutcome = {
 
 /**
  * Owns the background execution of queued agent runs (extracted from
- * ReviewService; behaviour unchanged). Loads the diff + intent once, then
- * map-reduces each agent, streaming events over the runBus and persisting each
- * review. Per-agent failures are isolated.
+ * ReviewService). Loads the diff once, resolves the PR intent once (M3 shared
+ * pre-step, through the `PrIntentResolver` port), then map-reduces each agent,
+ * streaming events over the runBus and persisting each review. Per-agent
+ * failures are isolated; an intent failure never fails a run.
  */
 export class ReviewRunExecutor {
   constructor(
     private container: Container,
     private repo: ReviewRepository,
     private agents: Container['agentsRepo'],
+    private intent: PrIntentResolver,
   ) {}
 
   /**
@@ -109,6 +112,23 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // M3 — ONE intent resolution per run request, shared by every agent.
+    // Never throws: on failure the review continues without intent.
+    const intent = await this.resolveIntent(
+      workspaceId,
+      {
+        id: pull.id,
+        number: pull.number,
+        title: pull.title,
+        body: pull.body,
+        branch: pull.branch,
+        headSha: pull.headSha,
+      },
+      { owner: repo.owner, name: repo.name, fullName: repo.fullName, clonePath: repo.clonePath },
+      diff,
+      runLog,
+    );
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -116,7 +136,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent);
         logger?.info(
           {
             runId,
@@ -139,6 +159,26 @@ export class ReviewRunExecutor {
     }
   }
 
+  /**
+   * M3 — the shared intent pre-step. Logs into every queued run (fanned-out
+   * logger). Any error (no model key, timeout, invalid output, DB) is logged
+   * and swallowed: the review runs without intent.
+   */
+  private async resolveIntent(
+    workspaceId: string,
+    pull: IntentPullInput,
+    repo: IntentRepoInput,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<ResolvedPrIntent | null> {
+    try {
+      return await this.intent.resolveForReview({ workspaceId, pull, repo, diff, log: runLog });
+    } catch (err) {
+      runLog.error(`Intent failed — continuing review without intent: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   /** Execute a single agent's review against a PR, streaming progress. */
   private async runOneAgent(
     workspaceId: string,
@@ -148,11 +188,12 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent: ResolvedPrIntent | null,
   ): Promise<RunOutcome> {
     const start = Date.now();
-    // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
-    // events are already in this run's buffer, so the persisted trace below
-    // (built from the buffer) includes them too.
+    // Narrow the fanned-out pre-work logger to THIS run; the shared diff and
+    // intent events (resolveIntent) are already in this run's buffer, so the
+    // persisted trace below (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
@@ -212,6 +253,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // M3 — the resolved intent (same block for every chunk). Omitted when
+        // the pre-step failed → prompt identical to the pre-M3 one.
+        ...(intent ? { intent: this.intent.toPromptIntent(intent) } : {}),
         ...(skills.prompt.length > 0 ? { skills: skills.prompt } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
@@ -292,7 +336,9 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        // Spec/plan files the intent pre-step read (M3).
+        specs_read: intent ? intent.sources.filter((s) => s.kind === 'spec').map((s) => s.ref) : [],
+        intent: intent ? this.intent.toTraceSnapshot(intent) : null,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -475,6 +521,7 @@ export class ReviewRunExecutor {
       raw_output: '',
       memory_pulled: [],
       specs_read: [],
+      intent: null,
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

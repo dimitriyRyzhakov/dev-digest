@@ -48,10 +48,12 @@ export function FindingsTab({ prId, runs, prCommits, repoFullName, headSha, onOp
   };
   // When a run settles (done OR failed) refresh active runs, run history and
   // reviews, so a just-failed run shows up in the timeline without a reload.
+  // The run's pre-step may also have (re)derived the PR intent (M3).
   const handleRunDone = useCallback(() => {
     refresh.activeRuns();
     refresh.history();
     refresh.reviews();
+    refresh.intent();
   }, [refresh]);
 
   // Timeline → Review-runs navigation: clicking an agent name in the timeline

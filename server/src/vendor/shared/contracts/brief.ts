@@ -13,6 +13,99 @@ export const Intent = z.object({
 });
 export type Intent = z.infer<typeof Intent>;
 
+// ---- Intent layer (M3): classification, evidence, unresolved refs ----
+/** Conventional Commits meaning, plus security / deps / revert / unknown. */
+export const IntentCategory = z.enum([
+  'feat',
+  'fix',
+  'refactor',
+  'perf',
+  'docs',
+  'test',
+  'build',
+  'ci',
+  'chore',
+  'style',
+  'security',
+  'deps',
+  'revert',
+  'unknown',
+]);
+export type IntentCategory = z.infer<typeof IntentCategory>;
+
+/** Evidence level computed in code (never taken from the model). */
+export const IntentConfidenceLevel = z.enum(['high', 'medium', 'low']);
+export type IntentConfidenceLevel = z.infer<typeof IntentConfidenceLevel>;
+
+export const IntentSourceKind = z.enum([
+  'title',
+  'description',
+  'ticket',
+  'spec',
+  'branch',
+  'commits',
+  'paths',
+]);
+export type IntentSourceKind = z.infer<typeof IntentSourceKind>;
+
+/** One input actually sent to the classifier. */
+export const IntentSource = z.object({
+  kind: IntentSourceKind,
+  ref: z.string(),
+  /** How it was obtained: GitHub API, blob at head sha, working tree, PR diff, PR row. */
+  via: z.enum(['github', 'head', 'worktree', 'diff', 'pr']).nullish(),
+  chars: z.number().int(),
+  truncated: z.boolean(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
+
+/** A ticket / spec / link found in PR text that was NOT read, and why. */
+export const IntentUnresolvedRef = z.object({
+  kind: z.enum(['ticket', 'spec', 'link']),
+  ref: z.string(),
+  host: z.string().nullish(),
+  reason: z.enum([
+    'external_host',
+    'other_repo',
+    'not_found',
+    'no_github_token',
+    'ext_not_allowed',
+    'unsafe_path',
+    'limit',
+  ]),
+});
+export type IntentUnresolvedRef = z.infer<typeof IntentUnresolvedRef>;
+
+/** A model-cited signal, kept only when it names a source that was sent. */
+export const IntentSignal = z.object({
+  source: IntentSourceKind,
+  ref: z.string().nullish(),
+  note: z.string(),
+});
+export type IntentSignal = z.infer<typeof IntentSignal>;
+
+/** What kind of risk a change area carries (hint for reviewers, never a finding). */
+export const IntentRiskKind = z.enum([
+  'auth',
+  'security',
+  'dependency',
+  'data',
+  'migration',
+  'performance',
+  'api',
+  'config',
+  'other',
+]);
+export type IntentRiskKind = z.infer<typeof IntentRiskKind>;
+
+/** A risk area: derived by code from the diff (`code`) or by the classifier (`model`). */
+export const IntentRiskArea = z.object({
+  kind: IntentRiskKind,
+  label: z.string().max(80),
+  origin: z.enum(['code', 'model']),
+});
+export type IntentRiskArea = z.infer<typeof IntentRiskArea>;
+
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
   name: z.string(),

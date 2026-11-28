@@ -4,7 +4,8 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
+import { mockIntentLlm } from './helpers/intent.js';
 import { completeAgentRun } from '../src/modules/reviews/repository/run.repo.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -118,7 +119,9 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        github: new MockGitHubClient(),
         llm: {
+          openrouter: mockIntentLlm(),
           [provider]: new MockLLMProvider(provider, { structured }),
         },
       },

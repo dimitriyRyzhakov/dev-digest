@@ -103,7 +103,7 @@ export function PrDetailView({ repoId, number }: { repoId: string; number: numbe
       />
 
       <div style={s.body}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} />}
 
         {tab === "findings" && (
           <FindingsTab

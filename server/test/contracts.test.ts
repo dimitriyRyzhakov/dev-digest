@@ -15,6 +15,9 @@ import {
   Settings,
   Repo,
   PrDetail,
+  PrIntentRecord,
+  PrIntentResponse,
+  FEATURE_MODELS,
 } from '@devdigest/shared';
 
 /**
@@ -166,6 +169,83 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+});
+
+describe('M3 intent contracts', () => {
+  const baseTrace = {
+    config: { agent: 'a', model: 'm' },
+    stats: { duration_ms: 1, tokens_in: 0, tokens_out: 0, findings: 0, grounding: '0/0 passed' },
+    prompt_assembly: { system: 's', user: 'u' },
+    tool_calls: [],
+    raw_output: '',
+    memory_pulled: [],
+    specs_read: [],
+    log: [],
+  };
+  const record = {
+    pr_id: 'p1',
+    intent: 'Adds rate limiting to the public API.',
+    in_scope: ['public endpoints'],
+    out_of_scope: [],
+    category: 'feat',
+    breaking: false,
+    confidence: 0.62,
+    confidence_level: 'medium',
+    documented: true,
+    signals: [{ source: 'description', ref: null, note: 'states the goal' }],
+    sources: [{ kind: 'description', ref: 'pr', via: 'pr', chars: 240, truncated: false }],
+    unresolved_refs: [{ kind: 'link', ref: 'https://linear.app/x', host: 'linear.app', reason: 'external_host' }],
+    risk_areas: [
+      { kind: 'auth', label: 'Auth surface touched', origin: 'code' },
+      { kind: 'performance', label: 'Adds Redis round-trip per request', origin: 'model' },
+    ],
+    provider: 'openrouter',
+    model: 'deepseek/deepseek-v4-flash',
+    cost_usd: 0.0004,
+    input_hash: 'abc',
+    head_sha: 'a1b2c3d',
+    updated_at: '2026-11-28T00:00:00.000Z',
+  };
+
+  it('a legacy (pre-M3) trace without intent still parses', () => {
+    const t = RunTrace.parse(baseTrace);
+    expect(t.intent).toBeUndefined();
+    expect(t.prompt_assembly.intent).toBeUndefined();
+  });
+
+  it('a trace with intent parses', () => {
+    const t = RunTrace.parse({
+      ...baseTrace,
+      prompt_assembly: { system: 's', user: 'u', intent: '## PR intent' },
+      intent: {
+        category: 'feat',
+        confidence: 0.62,
+        confidence_level: 'medium',
+        breaking: false,
+        summary: 's',
+        cached: true,
+        sources: record.sources,
+        unresolved_refs: record.unresolved_refs,
+      },
+    });
+    expect(t.intent?.cached).toBe(true);
+    expect(t.prompt_assembly.intent).toBe('## PR intent');
+  });
+
+  it('PrIntentRecord accepts a full record and rejects an unknown confidence_level', () => {
+    expect(PrIntentRecord.parse(record).confidence_level).toBe('medium');
+    expect(PrIntentRecord.safeParse({ ...record, confidence_level: 'x' }).success).toBe(false);
+    expect(
+      PrIntentRecord.safeParse({ ...record, risk_areas: Array(7).fill(record.risk_areas[0]) }).success,
+    ).toBe(false);
+    expect(PrIntentResponse.parse({ intent: null }).intent).toBeNull();
+  });
+
+  it('review_intent defaults to openrouter / deepseek-v4-flash', () => {
+    const def = FEATURE_MODELS.find((f) => f.id === 'review_intent');
+    expect(def?.defaultProvider).toBe('openrouter');
+    expect(def?.defaultModel).toBe('deepseek/deepseek-v4-flash');
   });
 });
 

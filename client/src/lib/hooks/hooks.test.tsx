@@ -9,7 +9,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { agentKeys, useUpdateAgent } from "./agents";
 import { coreKeys, usePrIdByNumber } from "./core";
-import { reviewKeys, usePrRunsRefresh } from "./reviews";
+import { reviewKeys, usePrIntent, usePrRunsRefresh } from "./reviews";
 import { repoIntelKeys } from "./repo-intel";
 import { traceKeys } from "./trace";
 import { skillKeys, useSetAgentSkills } from "./skills";
@@ -79,7 +79,28 @@ describe("usePrRunsRefresh", () => {
     const { result } = renderHook(() => usePrRunsRefresh(null), { wrapper });
     result.current.activeRuns();
     result.current.history();
+    result.current.intent();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("M3: intent() invalidates only the PR's intent key", () => {
+    const { qc, wrapper } = setup();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => usePrRunsRefresh("pr1"), { wrapper });
+    result.current.intent();
+    expect(reviewKeys.intent("pr1")).toEqual(["pr-intent", "pr1"]);
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([["pr-intent", "pr1"]]);
+  });
+});
+
+describe("usePrIntent", () => {
+  it("GETs /pulls/:id/intent and returns the response", async () => {
+    const fetchSpy = mockFetchJson({ intent: null });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => usePrIntent("pr1"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ intent: null });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/pulls\/pr1\/intent$/);
   });
 });
 

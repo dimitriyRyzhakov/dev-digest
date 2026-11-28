@@ -36,6 +36,17 @@ export type {
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";
 export type { PrBrief, SmartDiff } from "@devdigest/shared";
 export type {
+  PrIntentRecord,
+  PrIntentResponse,
+  IntentCategory,
+  IntentConfidenceLevel,
+  IntentRiskArea,
+  IntentRiskKind,
+  IntentSource,
+  IntentUnresolvedRef,
+  IntentTraceSnapshot,
+} from "@devdigest/shared";
+export type {
   Skill,
   SkillType,
   SkillSource,

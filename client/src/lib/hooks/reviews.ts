@@ -8,6 +8,7 @@ import { api, API_BASE } from "@/lib/api";
 import { notify } from "@/lib/toast";
 import type {
   FindingActionKind,
+  PrIntentResponse,
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
@@ -21,7 +22,18 @@ export const reviewKeys = {
   activeRuns: (prId: string | null | undefined) => ["pr-active-runs", prId] as const,
   runs: (prId: string | null | undefined) => ["pr-runs", prId] as const,
   comments: (prId: string | null | undefined) => ["pr-comments", prId] as const,
+  intent: (prId: string | null | undefined) => ["pr-intent", prId] as const,
 };
+
+// ---- PR intent (M3) — derived by the review pre-step ----
+/** The PR's cached intent; `{ intent: null }` until a review run derived one. */
+export function usePrIntent(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: reviewKeys.intent(prId),
+    queryFn: () => api.get<PrIntentResponse>(`/pulls/${prId}/intent`),
+    enabled: !!prId,
+  });
+}
 
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
@@ -160,6 +172,9 @@ export function usePrRunsRefresh(prId: string | null | undefined) {
       },
       reviews: () => {
         if (prId) qc.invalidateQueries({ queryKey: reviewKeys.list(prId) });
+      },
+      intent: () => {
+        if (prId) qc.invalidateQueries({ queryKey: reviewKeys.intent(prId) });
       },
     }),
     [qc, prId],

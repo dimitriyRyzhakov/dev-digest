@@ -274,6 +274,57 @@ export class SimpleGitClient implements GitClient {
     }
     return readFile(target, 'utf8');
   }
+
+  async showFile(
+    repo: RepoRef,
+    sha: string,
+    path: string,
+    opts: { maxBytes?: number } = {},
+  ): Promise<string | null> {
+    const maxBytes = opts.maxBytes ?? DEFAULT_SHOW_FILE_MAX_BYTES;
+    if (!SHA_RE.test(sha)) return null;
+    const rel = safeBlobPath(path);
+    if (!rel) return null;
+    try {
+      const g = this.git(repo);
+      // Mode check: a regular file only — never a symlink (120000) or a
+      // submodule / tree, whose "content" would point somewhere else.
+      // `-z`: NUL-terminated and never C-quoted, so non-ASCII paths compare
+      // byte-for-byte with `rel` (default output quotes them).
+      const entry = (await g.raw(['ls-tree', '-z', sha, '--', rel])).replace(/\0+$/, '');
+      const m = entry.match(/^(\d{6}) blob ([0-9a-f]{40,64})\t([^\0]+)$/);
+      if (!m || (m[1] !== '100644' && m[1] !== '100755') || m[3] !== rel) return null;
+      const blob = m[2]!;
+      const size = Number((await g.raw(['cat-file', '-s', blob])).trim());
+      if (!Number.isFinite(size) || size > maxBytes) return null;
+      return await g.raw(['cat-file', 'blob', blob]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+/** Default cap for `showFile` (spec/plan files are small text). */
+const DEFAULT_SHOW_FILE_MAX_BYTES = 64 * 1024;
+
+/** An abbreviated or full commit sha — never a ref name or an option. */
+const SHA_RE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Normalize a repo-relative posix path for a blob read, or `null` when it is
+ * unsafe: absolute, NUL / backslash, leading `-` (option injection), any `..`
+ * or `.git` segment. `./` and empty segments are dropped.
+ */
+function safeBlobPath(path: string): string | null {
+  if (!path || path.includes('\0') || path.includes('\\')) return null;
+  if (path.startsWith('/') || path.startsWith('-')) return null;
+  const segments = path.split('/').filter((s) => s.length > 0 && s !== '.');
+  if (segments.length === 0) return null;
+  for (const s of segments) {
+    if (s === '..' || s.toLowerCase() === '.git') return null;
+  }
+  const rel = segments.join('/');
+  return rel.startsWith('-') ? null : rel;
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

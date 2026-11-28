@@ -18,7 +18,7 @@ vi.mock("@/lib/hooks/reviews", () => ({
   usePrRuns: () => ({ data: hookState.prRuns }),
   useCancelRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteRun: () => ({ mutate: vi.fn(), isPending: false }),
-  usePrRunsRefresh: () => ({ activeRuns: vi.fn(), history: vi.fn(), reviews: vi.fn() }),
+  usePrRunsRefresh: () => ({ activeRuns: vi.fn(), history: vi.fn(), reviews: vi.fn(), intent: vi.fn() }),
 }));
 
 import { FindingsTab } from "./FindingsTab";

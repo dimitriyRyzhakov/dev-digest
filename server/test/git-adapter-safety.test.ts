@@ -94,3 +94,90 @@ describe('SimpleGitClient.clone', () => {
     await expect(access(sentinel)).resolves.toBeUndefined();
   });
 });
+
+describe('SimpleGitClient.showFile (M3 contained blob read)', () => {
+  const ref = { owner: 'show', name: 'repo' };
+  let client: SimpleGitClient;
+  let sha: string;
+
+  beforeAll(async () => {
+    const dest = join(cloneDir, 'show', 'repo');
+    await mkdir(join(cloneDir, 'show'), { recursive: true });
+    run(work, 'clone', '-q', upstream, dest);
+    run(dest, 'config', 'user.email', 't@example.com');
+    run(dest, 'config', 'user.name', 't');
+    await mkdir(join(dest, 'specs'), { recursive: true });
+    await writeFile(join(dest, 'specs', 'M3-x.md'), '# Spec\nDo the thing.\n');
+    await writeFile(join(dest, '-dash.md'), 'dash\n');
+    await writeFile(join(dest, 'big.md'), 'x'.repeat(70 * 1024));
+    run(dest, 'config', 'core.symlinks', 'true');
+    run(dest, 'add', '.');
+    // A committed symlink (mode 120000) pointing out of the repo.
+    const linkBlob = execFileSync(GIT, ['hash-object', '-w', '--stdin'], { cwd: dest, input: '../../../etc/passwd' })
+      .toString()
+      .trim();
+    run(dest, 'update-index', '--add', '--cacheinfo', `120000,${linkBlob},specs/link.md`);
+    run(dest, 'commit', '-q', '-m', 'spec');
+    sha = run(dest, 'rev-parse', 'HEAD');
+    client = new SimpleGitClient(cloneDir);
+  });
+
+  it('reads a regular file at a sha (full and abbreviated)', async () => {
+    expect(await client.showFile(ref, sha, 'specs/M3-x.md')).toBe('# Spec\nDo the thing.\n');
+    expect(await client.showFile(ref, sha.slice(0, 7), './specs/M3-x.md')).toBe('# Spec\nDo the thing.\n');
+  });
+
+  it.each([
+    ['traversal', '../../etc/passwd'],
+    ['traversal inside', 'specs/../../x.md'],
+    ['absolute path', '/etc/passwd'],
+    ['leading dash', '-dash.md'],
+    ['.git segment', '.git/config'],
+    ['NUL byte', 'specs/M3-x.md\0'],
+    ['directory', 'specs'],
+    ['missing file', 'specs/nope.md'],
+    ['symlink', 'specs/link.md'],
+  ])('returns null for %s', async (_label, path) => {
+    expect(await client.showFile(ref, sha, path)).toBeNull();
+  });
+
+  it('returns null for an oversize blob, an unknown sha and a non-hex sha', async () => {
+    expect(await client.showFile(ref, sha, 'big.md')).toBeNull();
+    expect(await client.showFile(ref, sha, 'big.md', { maxBytes: 128 * 1024 })).toHaveLength(70 * 1024);
+    expect(await client.showFile(ref, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 'specs/M3-x.md')).toBeNull();
+    expect(await client.showFile(ref, '--output=x', 'specs/M3-x.md')).toBeNull();
+    expect(await client.showFile(ref, 'HEAD', 'specs/M3-x.md')).toBeNull();
+  });
+});
+
+describe('SimpleGitClient.showFile — quoted / unicode paths', () => {
+  // `safeBlobPath` refuses only absolute, NUL/backslash, leading `-`, `..` and
+  // `.git` paths — a space or a non-ASCII name is a SAFE repo-relative path,
+  // so the blob at the sha is expected to be returned (and nothing throws).
+  const ref = { owner: 'show', name: 'unicode' };
+  let client: SimpleGitClient;
+  let sha: string;
+
+  beforeAll(async () => {
+    const dest = join(cloneDir, 'show', 'unicode');
+    await mkdir(join(cloneDir, 'show'), { recursive: true });
+    run(work, 'clone', '-q', upstream, dest);
+    run(dest, 'config', 'user.email', 't@example.com');
+    run(dest, 'config', 'user.name', 't');
+    await mkdir(join(dest, 'docs'), { recursive: true });
+    await writeFile(join(dest, 'docs', 'my plan.md'), '# Plan with space\n');
+    await writeFile(join(dest, 'docs', 'план-специфікація.md'), '# Unicode plan\n');
+    run(dest, 'add', '.');
+    run(dest, 'commit', '-q', '-m', 'unicode specs');
+    sha = run(dest, 'rev-parse', 'HEAD');
+    client = new SimpleGitClient(cloneDir);
+  });
+
+  it('reads a file whose name contains a space', async () => {
+    await expect(client.showFile(ref, sha, 'docs/my plan.md')).resolves.toBe('# Plan with space\n');
+  });
+
+  it('reads a file with a non-ASCII (Cyrillic) name without throwing', async () => {
+    await expect(client.showFile(ref, sha, 'docs/план-специфікація.md')).resolves.toBe('# Unicode plan\n');
+  });
+});
