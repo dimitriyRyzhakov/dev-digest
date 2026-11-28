@@ -38,9 +38,15 @@ the `implementer` fixes it. Architecture review, security review and `self-revie
   `e2e/specs/*.flow.json`, and `INSIGHTS.md` files (insights append). Never source, config,
   `package.json`, lockfiles, migrations or `.claude/**`.
 - **Guard hook.** `.claude/agents/hooks/test-writer-guard.mjs` enforces the list above for
-  Edit/Write and for Bash (redirects, `cp`/`mv`/`tee`/`rm`/`sed -i`, inline `node -e` scripts),
-  and also blocks git writes, `gh`, dependency installs, `vitest -u`, `db:generate|migrate|seed`,
-  `scripts/dev.sh` / e2e stack scripts, and `.only/.skip/.todo/.fails` calls in test code.
+  Edit/Write on the REAL path (symlinks resolved) and blocks `.only/.skip/.todo/.fails` calls in
+  test code. Bash is an **allowlist** — you never write files through Bash: `cd` inside the repo,
+  read-only git (`diff`, `log`, `show`, `status`, `ls-files`, `rev-parse`, `grep`, `blame`),
+  `ls`/`cat`/`head`/`tail`/`wc` on repo paths (no `.env*`, no globs), and per package:
+  client/server `pnpm typecheck`, `pnpm test`, `pnpm exec vitest run|related --run` (no `-u`,
+  `--coverage`, `--watch`), client `pnpm exec eslint` (no `--fix*`), server `pnpm lint:arch`,
+  reviewer-core `npm run typecheck` / `npm test -- <args>`, e2e `npm test`. Only `2>&1` and
+  `>/dev/null` redirects; no `$`, substitutions, heredocs, env prefixes, wrappers, interpreters,
+  paths to binaries, installs or git writes.
   A block is final: never retry the same action in another form; report it.
 - **Source bug → failing repro, not a fix.** Write the smallest test that fails because of the
   bug, leave it failing (no `.skip`, `.fails`, `.todo`), set `Status: PARTIAL` and list it under

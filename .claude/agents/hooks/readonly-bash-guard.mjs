@@ -4,18 +4,25 @@
 // stdin = PreToolUse JSON ({ tool_name, tool_input, cwd }); exit 2 + stderr reason blocks the call.
 // Bash is an ALLOWLIST: every simple command must be a known read-only command, run in the package
 // directory it belongs to. Anything unknown is blocked. Unparsable stdin is blocked (fail closed).
-// Read / Grep: secret files (.env*, ~/.devdigest/secrets.json) are blocked; everything else passes.
+// Read: secret files (.env*, ~/.devdigest/**) are blocked; other paths, also outside the repo, pass.
+// Grep: only paths inside the repo, and no glob that could reach secrets.
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { gitSubcommand, segments } from './shell-segments.mjs';
+import { envPrefixes, gitSubcommand, hasDynamicCommand, segments, unsafeShellChar, wrapperReason } from './shell-segments.mjs';
+import { eslintArgsReason, gitArgsReason, testScriptArgsReason, vitestArgsReason } from './tool-flags.mjs';
 
 const ROOT = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
 const GIT_ALLOWED = new Set(['diff', 'log', 'show', 'status', 'ls-files', 'rev-parse', 'grep', 'blame']);
 const FILE_READERS = new Set(['ls', 'cat', 'head', 'tail', 'wc']);
+// git flags: exact-spelling allowlist per subcommand (tool-flags.mjs#gitArgsReason) — git accepts
+// abbreviations (`--untrac`, `--conte=`, `--open=`), so a denylist of full names is bypassable.
 const PNPM_GLOBAL_BANNED = /^(-C|--dir(=.*)?|--filter(=.*)?|-F|-r|--recursive|-w|--workspace-root)$/;
-const VITEST_BANNED = /^(-u|--update(=.*)?|--coverage(\..*)?(=.*)?|--outputFile(\..*)?(=.*)?|--watch(=.*)?|-w|--ui(=.*)?|--standalone)$/;
-const ESLINT_BANNED = /^(--fix(-.*)?(=.*)?|-o|--output-file(=.*)?|--cache(-.*)?(=.*)?|--init)$/;
-const DEPCRUISE_BANNED = /^(--init(=.*)?|--output-to(=.*)?|-f|--cache(-.*)?(=.*)?)$/;
+// git subcommands whose positional args may name files: every path-like arg is checked, not only
+// pathspecs after `--` — `git diff /dev/null server/.env` silently switches to --no-index mode.
+const GIT_PATH_SUBS = new Set(['diff', 'log', 'show', 'grep', 'blame']);
+const DEPCRUISE_OUTPUT_TYPES = new Set(['err', 'err-long', 'text']);
 
 function relToRoot(abs) {
   return relative(ROOT, abs).split(sep).join('/');
@@ -26,23 +33,59 @@ function insideRoot(abs) {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
-/** Secret file check shared by Bash readers and the Read / Grep tools. */
+/** Shell quote removal: `server/'.env'` and `"server/.env"` both name server/.env. */
+const unquote = (a) => String(a).replace(/['"]/g, '');
+/** Glob / brace / escape characters: the shell would expand them into names we never saw. */
+const GLOB_CHARS = /[*?[\]{}\\]/;
+const expandHome = (p) => (p === '~' || p.startsWith('~/') ? homedir() + p.slice(1) : p);
+
+/** Secret file check shared by Bash readers, git path args and the Read / Grep tools. */
 function secretReason(p) {
-  const norm = String(p).split(sep).join('/');
-  const base = norm.split('/').pop();
+  // Case-insensitive: APFS resolves ~/.DEVDIGEST and server/.ENV to the real files.
+  const norm = expandHome(unquote(p)).split(sep).join('/').toLowerCase();
+  if (/(^|\/)\.devdigest(\/|$)/.test(norm)) {
+    return `${p} is inside ~/.devdigest (API keys, secrets.json); reviewers never read it.`;
+  }
+  const base = norm.replace(/\/+$/, '').split('/').pop();
   if (/^\.env(\..*)?$/i.test(base) && base.toLowerCase() !== '.env.example') {
     return `${p} is a secrets file (.env*); reviewers never read it.`;
   }
-  if (/(^|\/)\.devdigest\/secrets\.json$/.test(norm) || /\.devdigest\/secrets/.test(norm)) {
+  if (/(^|\/)\.devdigest\/secrets\.json$/.test(norm) || /\.devdigest\/secrets/.test(norm) || /(^|\/)secrets\.json$/.test(norm) && /devdigest/.test(norm)) {
     return `${p} holds API keys (~/.devdigest/secrets.json); reviewers never read it.`;
   }
   return null;
 }
 
-/** Read / Grep path check. */
+/** Read path check. Paths outside the repo stay allowed (tool-result files); secrets do not. */
 export function checkReadPath(filePath) {
   if (filePath === undefined || filePath === null || filePath === '') return null;
-  return secretReason(filePath);
+  const s = secretReason(filePath);
+  if (s) return s;
+  // A relative path resolves against the project dir; re-check the absolute form (e.g. ../../.devdigest).
+  return secretReason(resolve(ROOT, expandHome(String(filePath))));
+}
+
+/** Glob that could match a secrets file: names .env / secrets / .devdigest, or `.e*` / `.en?`-style. */
+function secretGlob(glob) {
+  const g = String(glob);
+  if (/^(\*\*\/)?\.env\.example$/i.test(g)) return false;
+  if (/secrets|\.devdigest/i.test(g)) return true;
+  if (/\.env/i.test(g)) return true;
+  // `.e*`, `.en?`, `.[e]nv`, `{.env,x}` at the start of a path segment
+  return /(^|\/|\{|,)\.(e|\[|\*|\?)/i.test(g) || /\.en[*?[]/i.test(g);
+}
+
+/** Grep tool check: only inside the repo (or no path = project dir); no secrets-reaching glob. */
+export function checkGrep(ti = {}) {
+  if (ti.path !== undefined && ti.path !== null && ti.path !== '') {
+    const raw = String(ti.path);
+    const abs = resolve(ROOT, expandHome(unquote(raw)));
+    if (!insideRoot(abs)) return `Grep path ${raw} is outside the repository; reviewers search only the repo.`;
+    const s = checkReadPath(raw);
+    if (s) return s;
+  }
+  if (ti.glob && secretGlob(ti.glob)) return `glob ${ti.glob} could match secrets files (.env*, secrets.json, .devdigest).`;
+  return null;
 }
 
 function pkgOf(dir) {
@@ -51,8 +94,10 @@ function pkgOf(dir) {
 }
 
 function checkFileArgs(cmd, args, dir) {
-  for (const a of args) {
-    if (a.startsWith('-')) continue;
+  for (const raw of args) {
+    if (raw.startsWith('-')) continue;
+    if (GLOB_CHARS.test(raw)) return `${cmd} ${raw}: glob / brace / escape characters are not allowed; name files exactly.`;
+    const a = unquote(raw);
     if (a.startsWith('~') || a.startsWith('$')) return `${cmd} ${a}: only paths inside the repository are allowed.`;
     const abs = resolve(dir, a);
     if (!insideRoot(abs)) return `${cmd} ${a}: path is outside the repository.`;
@@ -68,6 +113,9 @@ function checkGit(words, dir) {
     if (w === '-c' || w.startsWith('--config-env') || w.startsWith('--exec-path')) {
       return 'git -c / --config-env / --exec-path can run arbitrary programs; not allowed.';
     }
+    if (/^--(git-dir|work-tree|namespace|super-prefix)(=|$)/.test(w)) {
+      return `git ${w.split('=')[0]} points git at another repository / tree; not allowed.`;
+    }
     if (w === '-C') {
       const target = words[i + 1];
       if (!target || !insideRoot(resolve(dir, target))) return 'git -C must point inside the repository.';
@@ -80,20 +128,62 @@ function checkGit(words, dir) {
   if (!sub || !GIT_ALLOWED.has(sub)) {
     return `git ${sub ?? ''} is not read-only; allowed: ${[...GIT_ALLOWED].join(', ')}.`;
   }
-  for (const w of words) {
-    if (w === '--output' || w.startsWith('--output=') || w === '--ext-diff' || w === '--no-index') {
-      return `git ${w} writes files or reads outside the repository; not allowed.`;
+  const flagReason = gitArgsReason(sub, words.slice(words.indexOf(sub) + 1));
+  if (flagReason) return flagReason;
+  // Pathspecs after `--` must stay inside the repo and never name a secrets file.
+  const dd = words.indexOf('--');
+  if (dd !== -1) {
+    for (const raw of words.slice(dd + 1)) {
+      const a = unquote(raw);
+      if (a.startsWith(':')) continue; // git pathspec magic, e.g. ':!*.lock'
+      const s = secretReason(a);
+      if (s) return s;
+      if (a.startsWith('~') || !insideRoot(resolve(dir, a))) return `git ${sub} -- ${a}: path is outside the repository.`;
     }
-    if (sub === 'grep' && (/^-O/.test(w) || w.startsWith('--open-files-in-pager'))) {
-      return `git grep ${w} runs a pager program; not allowed.`;
+  }
+  if (GIT_PATH_SUBS.has(sub)) {
+    // Every positional arg before `--` too: a path outside the work tree (or /dev/null) makes
+    // git diff fall back to --no-index and print any file, .env included.
+    const subAt = words.indexOf(sub);
+    const before = words.slice(subAt + 1, dd === -1 ? words.length : dd);
+    for (const raw of before) {
+      if (raw.startsWith('-')) continue;
+      const a = unquote(raw);
+      if (a.startsWith(':')) continue;
+      if (a === '/dev/null') return `git ${sub} /dev/null switches to --no-index (reads any file); not allowed.`;
+      const s = secretReason(a);
+      if (s) return s;
+      if (a.startsWith('~')) return `git ${sub} ${a}: path is outside the repository.`;
+      const abs = resolve(dir, a);
+      // A revision (HEAD~1, origin/main...HEAD, HEAD^) is not a file; anything that exists on disk,
+      // is absolute or starts with `.` is treated as a path and must stay inside the repo.
+      const pathLike = existsSync(abs) || isAbsolute(a) || a.startsWith('.');
+      if (pathLike && !insideRoot(abs)) return `git ${sub} ${a}: path is outside the repository.`;
     }
   }
   return null;
 }
 
-function checkVitestArgs(args) {
-  const bad = args.find((a) => VITEST_BANNED.test(a));
-  return bad ? `vitest ${bad} writes files or never exits; not allowed.` : null;
+/** depcruise: read-only report flags only (`--config`, `--output-type err|err-long|text`, `--no-cache`). */
+function depcruiseArgsReason(args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = unquote(args[i]);
+    if (!a.startsWith('-')) continue;
+    const [name, inline] = a.includes('=') ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a, undefined];
+    if (name === '--no-cache' && inline === undefined) continue;
+    if (name === '--config' || name === '--output-type' || name === '-T') {
+      const v = inline ?? unquote(args[++i] ?? '');
+      if (!v) return `depcruise ${name} needs a value.`;
+      if (name !== '--config' && !DEPCRUISE_OUTPUT_TYPES.has(v)) return `depcruise ${name} ${v}: only err, err-long, text.`;
+      // depcruise EVALUATES the config file as JavaScript: only the repo's own config may be named.
+      if (name === '--config' && !['.dependency-cruiser.cjs', './.dependency-cruiser.cjs'].includes(v)) {
+        return `depcruise --config ${v}: only the repo's .dependency-cruiser.cjs (the config file is executed).`;
+      }
+      continue;
+    }
+    return `depcruise flag ${a} is not on the allowlist (--config, --output-type err|err-long|text, --no-cache).`;
+  }
+  return null;
 }
 
 function checkPnpm(args, dir) {
@@ -113,7 +203,7 @@ function checkPnpm(args, dir) {
   }
   if (script === 'test') {
     if (pkg !== 'server' && pkg !== 'client') return `pnpm test runs only in server/ or client/ (cwd: ${pkg}).`;
-    return checkVitestArgs(more);
+    return testScriptArgsReason(more);
   }
   // shell-segments drops the word `exec`, so `pnpm exec vitest` arrives as `pnpm vitest`
   // (pnpm runs a package bin the same way in both forms).
@@ -122,19 +212,15 @@ function checkPnpm(args, dir) {
     const [tool, ...targs] = execArgs;
     if (tool === 'vitest') {
       if (pkg !== 'server' && pkg !== 'client') return `vitest runs only in server/ or client/ (cwd: ${pkg}).`;
-      if (targs[0] === 'related' && !targs.includes('--run')) return 'vitest related without --run starts watch mode; add --run.';
-      if (targs[0] !== 'related' && targs[0] !== 'run') return 'only `vitest run …` and `vitest related --run …` are allowed.';
-      return checkVitestArgs(targs);
+      return vitestArgsReason(targs);
     }
     if (tool === 'eslint') {
       if (pkg !== 'client') return `eslint runs only in client/ (cwd: ${pkg}).`;
-      const bad = targs.find((a) => ESLINT_BANNED.test(a));
-      return bad ? `eslint ${bad} writes files; not allowed.` : null;
+      return eslintArgsReason(targs);
     }
     if (tool === 'depcruise') {
       if (pkg !== 'server') return `depcruise runs only in server/ (cwd: ${pkg}).`;
-      const bad = targs.find((a) => DEPCRUISE_BANNED.test(a));
-      return bad ? `depcruise ${bad} writes files; not allowed.` : null;
+      return depcruiseArgsReason(targs);
     }
     return `pnpm exec ${tool ?? ''} is not on the read-only allowlist (vitest, eslint, depcruise).`;
   }
@@ -149,7 +235,7 @@ function checkNpm(args, dir) {
   const tail = sep2 === -1 ? [] : args.slice(sep2 + 1);
   const cmd = head.join(' ');
   if (cmd === 'run typecheck' && tail.length === 0) return null;
-  if (cmd === 'test' || cmd === 'run test') return checkVitestArgs(tail);
+  if (cmd === 'test' || cmd === 'run test') return testScriptArgsReason(tail);
   return `npm ${args.join(' ')} is not on the read-only allowlist (run typecheck, test).`;
 }
 
@@ -202,6 +288,14 @@ export function maskQuoted(text) {
 }
 
 export function checkReadonlyBash(command, cwd = ROOT) {
+  // First: anything the shell would expand or un-escape after this check (`--out\put`, `{a,b}`,
+  // globs, `$`, a leading `~`) — the words approved below must be exactly the words the shell runs.
+  const unsafe = unsafeShellChar(String(command));
+  if (unsafe) {
+    return unsafe.char === 'unterminated quote'
+      ? 'unterminated quote; not allowed.'
+      : `\`${unsafe.char}\` would be expanded / un-escaped by the shell; name commands, flags and files literally (quote patterns with '…').`;
+  }
   const text = maskQuoted(String(command));
   if (text === null) return 'unterminated quote; not allowed.';
   // Harmless stderr/stdout plumbing is removed before the redirection check.
@@ -212,10 +306,23 @@ export function checkReadonlyBash(command, cwd = ROOT) {
   if (/[<>]/.test(stripped)) return 'redirection / heredoc / process substitution writes or reads files; not allowed.';
   if (/`|\$\(/.test(stripped)) return 'command substitution is not allowed.';
   if (/&/.test(stripped.replace(/&&/g, ' '))) return 'background jobs (&) are not allowed.';
+  // VAR=x prefixes change what an allowed command runs (GIT_EXTERNAL_DIFF=rm git diff, GIT_CONFIG_*).
+  const env = envPrefixes(stripped);
+  if (env.length > 0) return `environment assignments (${env.join(', ')}) change what the command runs; not allowed.`;
+  if (hasDynamicCommand(stripped)) return 'a command word built from $… or backticks is not allowed.';
+  // The raw command word must be a bare name: `/usr/bin/git`, `"git"` or `\git` could be any binary.
+  for (const seg of stripped.split(/\$\(|[;&|()\n`]/)) {
+    const word = seg.trim().split(/\s+/)[0];
+    if (word && !/^[A-Za-z][A-Za-z0-9_-]*$/.test(word)) {
+      return `command word ${word} must be a bare allowlisted name (no path, quotes or escapes).`;
+    }
+  }
 
   let dir = cwd;
   for (const words of segments(stripped)) {
     const [cmd, ...args] = words;
+    const wrapped = wrapperReason(words);
+    if (wrapped) return wrapped;
     if (cmd === 'cd') {
       if (!args[0] || args[0].startsWith('~') || args[0].startsWith('$')) return 'cd needs an explicit path inside the repository.';
       const next = resolve(dir, args[0]);
@@ -254,10 +361,7 @@ export async function main() {
   let reason = null;
   if (tool === 'Bash') reason = checkReadonlyBash(String(ti.command ?? ''), input.cwd || ROOT);
   else if (tool === 'Read') reason = checkReadPath(ti.file_path);
-  else if (tool === 'Grep') {
-    reason = checkReadPath(ti.path);
-    if (!reason && ti.glob && /\.env(?!\.example)/i.test(String(ti.glob))) reason = `glob ${ti.glob} targets secrets files.`;
-  }
+  else if (tool === 'Grep') reason = checkGrep(ti);
   if (reason) {
     process.stderr.write(`readonly-bash-guard: blocked — ${reason}\n`);
     return 2;

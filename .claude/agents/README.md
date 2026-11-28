@@ -31,31 +31,55 @@ clarifying questions instead of guessing.
 | plan-verifier | Read, Grep, Glob, Bash (allowlist) | Write, Edit, NotebookEdit, Skill, Agent, WebSearch, WebFetch | — (reads a SKILL.md section only when a plan constraint cites it) | [`hooks/readonly-bash-guard.mjs`](hooks/readonly-bash-guard.mjs) on Bash / Read / Grep; `maxTurns: 60` |
 | doc-writer | Read, Grep, Glob, Edit, Write | Bash, Agent, Skill, WebSearch, WebFetch, NotebookEdit | mermaid-diagram | [`hooks/doc-writer-guard.mjs`](hooks/doc-writer-guard.mjs) on Edit / Write / MultiEdit |
 
-`implementer-guard.mjs` (on Bash / Edit / Write) blocks with exit 2, and a block is final:
-- Bash: `git commit|push|reset|checkout|switch|stash|rebase|merge|clean|restore`, `gh`,
-  `lint:arch:baseline`, `docker compose down`, recursive `rm` outside `.next/`, `pnpm build` in `client/`.
-- Edits: tracked `server/src/db/migrations/**`, `.github/workflows/**`, `.claude/**`,
-  `client/src/vendor/ui/**`, `.env*` (except `.env.example`), anything outside the repo.
+`implementer-guard.mjs` (on Bash / Edit / Write) blocks with exit 2, and a block is final
+(unparsable hook input is blocked too — fails closed):
+- Bash: git outside an allowlist of read / index subcommands (blocked: `commit|push|reset|checkout|switch|
+  stash|rebase|merge|clean|restore|cherry-pick|revert|tag|update-ref|worktree|apply|am|…`, unknown
+  subcommands = possible aliases, `branch` writes, `config` writes, global `-c|--git-dir|--work-tree|
+  --exec-path`), `gh`, `lint:arch:baseline`, `docker compose down`, recursive `rm` outside `.next/`,
+  `pnpm build` in `client/`; wrappers that hide a command (`bash|sh -c`, `eval`, `xargs`, `timeout`,
+  `find -exec|-delete`, `stdbuf`, `alias`, `patch`, …) and runners re-checked (`pnpm exec|npx <cmd>`);
+  command words given by path, quotes or `$X` / `$(…)` are normalised or blocked; env prefixes
+  `GIT_*`, `NODE_OPTIONS`, `LD_*`, `DYLD_*`, `PATH`, `BASH_ENV`; `cd|pushd` with `~`, `$`, `-`, globs or
+  outside the repo, `popd`.
+- Protected paths: tracked `server/src/db/migrations/**`, `.github/workflows/**`, `.claude/**`, `.git/**`,
+  `client/src/vendor/ui/**`, `.env*` (except `.env.example`), anything outside the repo — checked after
+  resolving symlinks, for Edit / Write and for Bash write targets (`>` / `>>`, `sed -i`, `perl -i`,
+  `cp|mv|install` destination, `tee`, `touch`, `truncate`, `ln`, `rm`, `dd of=`, `curl -o|-O`,
+  `wget -O|-P`, `sort -o`, `tar -f|-C`, `unzip -d`, `rsync`, `split`, `awk -i inplace`, `git mv|rm`);
+  unpacking / syncing into a folder that contains a protected path is blocked. Other source writes pass.
+- **Tripwire, not a sandbox.** The implementer must write source and run scripts, so a script run via
+  `node` / `python` / `tsx` can still write anywhere or call git / gh. Real isolation is Claude Code's
+  sandbox / permission settings.
 
-`test-writer-guard.mjs` — everything implementer-guard blocks, plus (deny by default, fails closed):
-- Edits only to `{client,server,reviewer-core}/**/*.test.ts(x)` (`*.it.test.ts` only in `server/`),
-  `server/test/**`, `server/src/adapters/mocks.ts`, `client/src/test/**`, `e2e/specs/*.flow.json`,
-  `INSIGHTS.md` files; no `.only/.skip/.todo/.fails(` calls in written test code
-  (the `hasDocker ? describe : describe.skip;` gate is allowed).
-- Bash: `git add|apply|am|mv|rm|update-index`, dependency installs, `vitest -u`,
-  `db:generate|migrate|seed|push`, `scripts/dev.sh` / e2e stack scripts, `sed -i` / `perl -i` /
-  `node -e` / `python -c`; `cp|mv|tee|touch|ln|rm` and `>` / `>>` only into allowed test paths.
+`test-writer-guard.mjs` — deny by default, fails closed:
+- Edits: implementer-guard's protected paths, then only `{client,server,reviewer-core}/**/*.test.ts(x)`
+  (`*.it.test.ts` only in `server/`), `server/test/**`, `server/src/adapters/mocks.ts`,
+  `client/src/test/**`, `e2e/specs/*.flow.json`, `INSIGHTS.md` files — checked on the real path
+  (symlinks resolved); no `.only/.skip/.todo/.fails(` calls in written test code (the
+  `hasDocker ? describe : describe.skip;` gate is allowed).
+- Bash: an allowlist, Bash never writes files; words are checked for shell expansion (escapes, braces,
+  globs, `$`, leading `~`) and tool flags are allowlisted (`hooks/tool-flags.mjs`). `cd` inside the repo; read-only git
+  (`diff|log|show|status|ls-files|rev-parse|grep|blame`, no `-c` / `--git-dir` / `--work-tree` /
+  `--output` / `--contents` / `--untracked`); `ls|cat|head|tail|wc` on literal repo paths (no `.env*`,
+  globs, `~`); per package `pnpm typecheck|test`, `pnpm exec vitest run|related --run` (no `-u`,
+  `--coverage`, `--watch`), client `pnpm exec eslint` (no `--fix*`), server `pnpm lint:arch`,
+  reviewer-core `npm run typecheck` / `npm test -- …`, e2e `npm test`. Commands by bare name only;
+  no redirects except `2>&1` / `>/dev/null`, no `$`, substitutions, heredocs, subshells, `&` or
+  `VAR=x` prefixes.
 
 `readonly-bash-guard.mjs` — allowlist, everything else is blocked (fails closed):
-- `cd` inside the repo; `git diff|log|show|status|ls-files|rev-parse|grep|blame` (no `-c`, `--output`,
-  `--ext-diff`, `--no-index`, `git grep -O`); `ls|cat|head|tail|wc` on repo paths.
+- `cd` inside the repo; `git diff|log|show|status|ls-files|rev-parse|grep|blame` (no `-c`, `--git-dir`,
+  `--work-tree`, `--output`, `--ext-diff`, `--no-index`, `blame --contents`, `grep -O|--untracked`);
+  `ls|cat|head|tail|wc` on literal repo paths (no globs). No `VAR=x` prefixes (`GIT_EXTERNAL_DIFF=…`
+  would make `git diff` run a program); command words by bare name only.
 - Per package: `pnpm typecheck|test` (server, client), `pnpm lint:arch` (server; never
   `lint:arch:baseline`), `pnpm exec eslint` without `--fix` (client), `pnpm exec vitest run|related --run`
   without `-u` / `--coverage` / `--watch` (server, client), `pnpm exec depcruise` (server, not `npx` —
   local-first), `npm run typecheck|test` (reviewer-core), `node --test '.claude/agents/hooks/*.test.mjs'`.
 - No redirects, `$(…)`, backticks or `&` — checked after masking quoted text, so a `|` or `>` inside
   `'…'` / `"…"` (a regex, a `--grep` pattern) is an argument; `$(…)` and backticks inside `"…"` stay blocked. Read / Grep of `.env*` (except `.env.example`) and
-  `~/.devdigest/secrets.json` is blocked too.
+  `~/.devdigest/**` is blocked too; Grep runs only inside the repo and never with a secrets / `.env` glob.
 
 `doc-writer-guard.mjs` — `.md` only (fails closed, symlink-safe): root `README.md`, `<pkg>/README.md`,
 `<pkg>/docs/**`, `server/src/modules/<m>/README.md`, index `README.md`s under `docs/agent-prompts`
@@ -179,6 +203,11 @@ External practice:
   fails closed) with a `hooks/<name>-guard.test.mjs` next to it. Shell parsing comes from
   [`hooks/shell-segments.mjs`](hooks/shell-segments.mjs) — it drops the word `exec`, so
   `pnpm exec vitest` reaches a guard as `pnpm vitest`; changing it affects every guard.
-- test-writer-guard builds on implementer-guard's `checkBash` / `checkPath`: a change there changes both.
+- test-writer-guard builds on implementer-guard's `checkPath`: a change there changes both.
+- Allowlist guards share three layers: bare command names, `unsafeShellChar` (no shell expansion /
+  un-escaping after the guard looked) in `shell-segments.mjs`, and exact-spelling tool flags in
+  [`hooks/tool-flags.mjs`](hooks/tool-flags.mjs) (vitest, eslint, read-only git — git accepts option
+  abbreviations, and options with an optional value never take the next word). Cross-guard bypasses
+  found in review go into `hooks/regressions.test.mjs`.
 - New agent files may need a new session before the Agent tool lists them; always smoke-test there.
 - Update this README (catalog, permissions, sources) in the same change.
