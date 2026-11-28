@@ -44,6 +44,32 @@ The agent editor's Skills tab (`/agents/:id?tab=skills`) links workspace skills 
 orders them (drag or Alt+↑/↓) and toggles them; order = order of the skill blocks in the system
 prompt. The run trace's Prompt assembly lists each skill sent with its version and tokens.
 
+## Intent card and trace (M3)
+
+- **Overview.** `OverviewTab` loads `usePrIntent(prId)` (`GET /pulls/:id/intent`, key
+  `reviewKeys.intent`) and, once the first load settles, renders `IntentCard` above the PR
+  description. The card shows the quoted summary, in-scope and out-of-scope lists, risk-area chips
+  and a footer (confidence badge with value, breaking badge, source chips, unresolved refs, model
+  and cost). Low confidence adds a hint banner above the summary; with no intent it shows "Intent
+  is derived when a review runs". All text is rendered as plain text and unresolved refs are never
+  links. `FindingsTab` calls `usePrRunsRefresh().intent()` when runs settle, so the card updates
+  after a review. Code: `src/app/repos/[repoId]/pulls/[number]/_components/IntentCard/`.
+- **Trace drawer.** `RunTraceDrawer` shows an "Intent" configuration row (`category · level ·
+  cached|fresh`) when the trace has `intent`, a "Specs read" row, and a "PR intent — derived
+  (dynamic)" prompt block from `prompt_assembly.intent`. Legacy traces without intent render as
+  before.
+- **Settings → Models.** The `review_intent` feature ("PR Review · Intent") defaults to
+  `openrouter` / `deepseek/deepseek-v4-flash` (`src/lib/feature-models.ts`, mirrored in the
+  `platform.ts` contract).
+
+Spec: [specs/M3-intent-layer.md](specs/M3-intent-layer.md).
+
+## Smart Diff in Files changed (M3)
+
+The Files changed tab groups files by role (core, tests, wiring, docs, boilerplate) from
+`GET /pulls/:id/smart-diff` (`usePrSmartDiff`), with a Smart/Original toggle, and shows the latest
+review findings inline. Details: [docs/smart-diff-files-changed.md](docs/smart-diff-files-changed.md).
+
 Cross-cutting chrome lives in `src/components/app-shell` (nav, breadcrumbs,
 `g`-then-key shortcuts). Pages are thin; feature logic sits in colocated
 `_components/<Name>/` folders, each with its own `*.test.tsx`.

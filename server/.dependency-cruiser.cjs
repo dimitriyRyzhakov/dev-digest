@@ -58,12 +58,14 @@ module.exports = {
       severity: 'error',
       comment:
         'Domain ring (src/vendor/shared, modules/<m>/domain.ts) is the core: it may import only other domain code, ' +
-        'platform/errors and zod. No server internals, no other npm packages, no node builtins.',
-      from: { path: ['^src/modules/[^/]+/domain\\.ts$', '^src/vendor/shared/'] },
+        'platform/errors and zod. No server internals, no other npm packages, no node builtins. ' +
+        "A module's domain.ts may also import its OWN constants.ts ($1 = the module name captured in `from`); constants.ts is Domain too, so it is held to the same rule.",
+      from: { path: ['^src/modules/([^/]+)/domain\\.ts$', '^src/modules/([^/]+)/constants\\.ts$', '^src/vendor/shared/'] },
       to: {
         pathNot: [
           '^src/vendor/shared/',
           '^src/modules/[^/]+/domain\\.ts$',
+          '^src/modules/$1/constants\\.ts$',
           '^src/platform/errors\\.ts$',
           '(^|/)node_modules/zod/',
         ],

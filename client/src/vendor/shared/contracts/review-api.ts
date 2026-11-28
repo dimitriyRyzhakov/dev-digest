@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { Intent, SmartDiff } from './brief.js';
+import {
+  Intent,
+  IntentCategory,
+  IntentConfidenceLevel,
+  IntentRiskArea,
+  IntentSignal,
+  IntentSource,
+  IntentUnresolvedRef,
+  SmartDiff,
+} from './brief.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -56,9 +65,35 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/**
+ * Intent persisted for a PR (M3). `intent` holds the one-sentence summary;
+ * `confidence_level` / `confidence` are calibrated in code from the evidence
+ * found, not taken from the model.
+ */
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  category: IntentCategory,
+  breaking: z.boolean(),
+  confidence: z.number().min(0).max(1),
+  confidence_level: IntentConfidenceLevel,
+  documented: z.boolean(),
+  signals: z.array(IntentSignal),
+  sources: z.array(IntentSource),
+  unresolved_refs: z.array(IntentUnresolvedRef),
+  /** Code-derived first, then model-derived; deduped, at most 6. */
+  risk_areas: z.array(IntentRiskArea).max(6),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  cost_usd: z.number().nullish(),
+  input_hash: z.string().nullish(),
+  head_sha: z.string().nullish(),
+  updated_at: z.string(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
+
+/** Response of `GET /pulls/:id/intent`; null until a review run derived one. */
+export const PrIntentResponse = z.object({ intent: PrIntentRecord.nullable() });
+export type PrIntentResponse = z.infer<typeof PrIntentResponse>;
 
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;

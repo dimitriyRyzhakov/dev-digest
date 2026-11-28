@@ -1,5 +1,5 @@
 import * as t from '../../src/db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { PgFixture } from './pg.js';
 
 /**
@@ -10,6 +10,15 @@ import type { PgFixture } from './pg.js';
  * reaches a terminal status (done / failed / cancelled).
  */
 const TERMINAL = new Set(['done', 'failed', 'cancelled']);
+
+async function tracesSaved(db: PgFixture['handle']['db'], runIds: string[]): Promise<boolean> {
+  if (runIds.length === 0) return true;
+  const rows = await db
+    .select({ runId: t.runTraces.runId })
+    .from(t.runTraces)
+    .where(inArray(t.runTraces.runId, runIds));
+  return rows.length >= runIds.length;
+}
 
 export async function waitForPrRuns(
   db: PgFixture['handle']['db'],
@@ -27,7 +36,9 @@ export async function waitForPrRuns(
       expected != null
         ? terminal.length >= expected
         : runs.length > 0 && terminal.length === runs.length;
-    if (done) return runs;
+    // The executor marks a run terminal BEFORE it writes the run_traces doc,
+    // so also wait for every terminal run's trace (else a trace read races).
+    if (done && (await tracesSaved(db, terminal.map((r) => r.id)))) return runs;
     if (Date.now() - start > timeoutMs) return runs;
     await new Promise((r) => setTimeout(r, 25));
   }

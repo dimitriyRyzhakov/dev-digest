@@ -9,7 +9,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { agentKeys, useUpdateAgent } from "./agents";
 import { coreKeys, usePrIdByNumber } from "./core";
-import { reviewKeys, usePrRunsRefresh } from "./reviews";
+import { reviewKeys, usePrIntent, usePrRunsRefresh, usePrSmartDiff, useRefreshOnRunsSettled } from "./reviews";
 import { repoIntelKeys } from "./repo-intel";
 import { traceKeys } from "./trace";
 import { skillKeys, useSetAgentSkills } from "./skills";
@@ -79,7 +79,81 @@ describe("usePrRunsRefresh", () => {
     const { result } = renderHook(() => usePrRunsRefresh(null), { wrapper });
     result.current.activeRuns();
     result.current.history();
+    result.current.intent();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("M3: intent() invalidates only the PR's intent key", () => {
+    const { qc, wrapper } = setup();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => usePrRunsRefresh("pr1"), { wrapper });
+    result.current.intent();
+    expect(reviewKeys.intent("pr1")).toEqual(["pr-intent", "pr1"]);
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([["pr-intent", "pr1"]]);
+  });
+});
+
+describe("useRefreshOnRunsSettled", () => {
+  const settledKeys = [
+    ["reviews", "pr1"],
+    ["pr-runs", "pr1"],
+    ["pr-intent", "pr1"],
+    ["pr-smart-diff", "pr1"],
+  ];
+
+  it("invalidates reviews, runs, intent and smart diff when active runs go 1 → 0", async () => {
+    const { qc, wrapper } = setup();
+    qc.setQueryData(reviewKeys.activeRuns("pr1"), [{ run_id: "r1", agent_id: null, agent_name: null, ran_at: null }]);
+    mockFetchJson([{ run_id: "r1", agent_id: null, agent_name: null, ran_at: null }]);
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { rerender } = renderHook(() => useRefreshOnRunsSettled("pr1"), { wrapper });
+    expect(spy).not.toHaveBeenCalled();
+    act(() => qc.setQueryData(reviewKeys.activeRuns("pr1"), []));
+    rerender();
+    await waitFor(() => expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual(settledKeys));
+  });
+
+  it("does nothing when no run was active (0 → 0) or runs start (0 → 1)", () => {
+    const { qc, wrapper } = setup();
+    qc.setQueryData(reviewKeys.activeRuns("pr1"), []);
+    mockFetchJson([]);
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { rerender } = renderHook(() => useRefreshOnRunsSettled("pr1"), { wrapper });
+    act(() => qc.setQueryData(reviewKeys.activeRuns("pr1"), [{ run_id: "r1", agent_id: null, agent_name: null, ran_at: null }]));
+    rerender();
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("usePrIntent", () => {
+  it("GETs /pulls/:id/intent and returns the response", async () => {
+    const fetchSpy = mockFetchJson({ intent: null });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => usePrIntent("pr1"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ intent: null });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/pulls\/pr1\/intent$/);
+  });
+});
+
+describe("usePrSmartDiff", () => {
+  it("keys on the PR and GETs /pulls/:id/smart-diff", async () => {
+    expect(reviewKeys.smartDiff("pr1")).toEqual(["pr-smart-diff", "pr1"]);
+    const body = { groups: [], split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] } };
+    const fetchSpy = mockFetchJson(body);
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => usePrSmartDiff("pr1"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(body);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/pulls\/pr1\/smart-diff$/);
+    expect(qc.getQueryData(["pr-smart-diff", "pr1"])).toEqual(body);
+  });
+
+  it("does not fetch without a prId", () => {
+    const fetchSpy = mockFetchJson({});
+    const { wrapper } = setup();
+    renderHook(() => usePrSmartDiff(null), { wrapper });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -34,7 +34,11 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "intent": "Intent",
+      "intentValue": "{category} · {level} · {mode}",
+      "intentCached": "cached",
+      "intentFresh": "fresh"
     },
     "stat": {
       "duration": "DURATION",
@@ -45,6 +49,7 @@
     "prompt": {
       "system": "System",
       "skills": "Skills (dynamic)",
+      "intent": "PR intent — derived (dynamic)",
       "memory": "Memory (dynamic)",
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
       "specs": "Project context (dynamic)",

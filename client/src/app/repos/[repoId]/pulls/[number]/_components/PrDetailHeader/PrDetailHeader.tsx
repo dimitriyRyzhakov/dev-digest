@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
+import { useStickyOffset } from "./useStickyOffset";
 import type { PrDetail } from "@/lib/types";
 
 interface PrDetailHeaderProps {
@@ -30,6 +31,7 @@ export function PrDetailHeader({
   onRunsStarted,
 }: PrDetailHeaderProps) {
   const t = useTranslations("prReview.detail");
+  const rootRef = useStickyOffset<HTMLDivElement>();
 
   const statusColor =
     pr.status === "merged"
@@ -39,7 +41,7 @@ export function PrDetailHeader({
         : "var(--warn)";
 
   return (
-    <div style={s.root}>
+    <div ref={rootRef} style={s.root}>
       <div style={s.titleRow}>
         <div style={s.titleCol}>
           <h1 style={s.h1}>

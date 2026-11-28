@@ -31,10 +31,13 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  inline = false,
 }: {
   f: FindingRecord;
   focused?: boolean;
   defaultExpanded?: boolean;
+  /** Rendered under its own diff line: drop the file:line meta row (one-line header). */
+  inline?: boolean;
   onAction?: (action: FindingActionKind, reply?: string) => void;
   pending?: boolean;
   repoFullName?: string | null;
@@ -64,12 +67,14 @@ export function FindingCard({
             {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
           </div>
-          <div style={s.metaRow}>
-            <MonoLink href={fileHref}>
-              {f.file}:{lineLabel(f)}
-            </MonoLink>
-            <ConfidenceNum value={f.confidence} />
-          </div>
+          {!inline && (
+            <div style={s.metaRow}>
+              <MonoLink href={fileHref}>
+                {f.file}:{lineLabel(f)}
+              </MonoLink>
+              <ConfidenceNum value={f.confidence} />
+            </div>
+          )}
         </div>
         <Icon.ChevronDown size={16} style={s.chevron(expanded)} />
       </div>

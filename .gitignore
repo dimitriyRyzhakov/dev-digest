@@ -26,3 +26,4 @@ test-results/
 
 # self-review reports (local, per diff)
 .claude/self-review/
+.claude/work/

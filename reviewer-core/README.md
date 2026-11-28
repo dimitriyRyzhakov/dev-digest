@@ -40,9 +40,34 @@ to the agent's enabled links and in link order. They are rendered into the
 server can count tokens per skill for the run trace.
 Spec: [specs/M2-skills-in-system-prompt.md](specs/M2-skills-in-system-prompt.md).
 
+## PR intent (M3)
+
+`PromptIntent` (`category`, `summary`, `inScope`, `outOfScope`, `breaking`, `confidenceLevel`,
+`documented`, optional `riskAreas`) is the PR's intent, already **resolved by the caller**. The
+engine does no I/O; it only renders it. `ReviewInput.intent` flows through `promptParts` into
+`assemblePrompt`, and `renderIntentBlock(intent)` builds the section.
+
+- **Placement.** In the user message after `## PR description` and before `## Relevant memory`.
+  Without an intent the section is omitted and the messages are the same as before M3. In
+  map-reduce every chunk gets the same block.
+- **Layout.** Heading `## PR intent (derived from PR text — untrusted)`, a trusted rule line, a
+  trusted confidence hint (low: "derived only from indirect signals"; medium: "treat as a hint";
+  high: none), then the derived text in `<untrusted source="pr-intent">` (category and breaking,
+  summary, `In scope`, `Out of scope`, `Risk areas`).
+- **Out-of-scope rule.** The trusted line says the intent never reduces, waives or descopes a
+  finding and that critical issues outside the stated scope are reported at full severity. The
+  line sits outside the wrap, so the author's text cannot rewrite it.
+- **Caps.** Wrapped body up to `MAX_INTENT_CHARS` (1500); at most 8 items per list, 200 chars each;
+  at most 6 risk areas, 80 chars each.
+- **Escaping.** `wrapUntrusted` neutralises the delimiter case-insensitively (`<untrusted`,
+  `</UNTRUSTED`, whitespace variants).
+- **Trace.** `assembly.intent` holds the rendered block, or `null`.
+
+Code: [src/prompt.ts](src/prompt.ts#renderIntentBlock). Spec: [specs/M3-intent-in-prompt.md](specs/M3-intent-in-prompt.md).
+
 ## Public API
 
-Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` / `renderSkillsBlock` / `renderSkillBlock` (prompt),
+Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` / `renderSkillsBlock` / `renderSkillBlock` / `renderIntentBlock` / `MAX_INTENT_CHARS` / `PromptIntent` (prompt),
 `groundFindings` / `groundingSummary` (grounding), `toJsonSchema` / `extractJson`
 / `parseWithRepair` (structured output), plus the `run` entrypoint and
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from

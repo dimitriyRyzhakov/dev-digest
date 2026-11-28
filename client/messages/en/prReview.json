@@ -62,9 +62,34 @@
     "boilerplateLabel": "Boilerplate",
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
-    "filesCount": "{count} files",
+    "filesCount": "{count, plural, one {# file} other {# files}}",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "groupedByRole": "Smart Diff · grouped by role",
+    "testsLabel": "Tests",
+    "docsLabel": "Docs",
+    "title": "Reviewer-ordered diff",
+    "totals": "{files, plural, one {# file} other {# files}} · +{additions} −{deletions}",
+    "smartOrder": "Smart order",
+    "originalOrder": "Original order",
+    "orderLabel": "File order",
+    "coreHint": "The substance of the change — review closely",
+    "testsHint": "Checks that prove the change works",
+    "wiringHint": "Hooks the core into the app",
+    "docsHint": "Explanations — read for context",
+    "boilerplateHint": "Generated / mechanical — skim",
+    "severityLabel": {
+      "CRITICAL": "blocker",
+      "WARNING": "warning",
+      "SUGGESTION": "suggestion"
+    },
+    "unmatchedTitle": "{count, plural, one {# finding} other {# findings}} outside the shown diff",
+    "filesWithFindings": "{count, plural, one {# file} other {# files}} with open findings",
+    "fileHasFindings": "Has open findings",
+    "reviewNotRun": "Review not run yet",
+    "showComments": "Show comments ({count})",
+    "hideComments": "Hide comments ({count})",
+    "commentPostFailed": "Couldn't post the comment to GitHub.",
+    "filesChanged": "Files changed"
   },
   "list": {
     "breadcrumb": "Pull Requests",
@@ -124,7 +149,27 @@
     "staleWarning": "This PR is already {status} — running a review is informational and won't affect the merged code.",
     "tabOverview": "Overview",
     "tabFindings": "Agent runs",
-    "tabDiff": "Files changed"
+    "tabDiff": "Files changed",
+    "intent": {
+      "title": "Intent",
+      "empty": "Intent is derived when a review runs",
+      "lowHint": "Derived from indirect signals only — treat as a hint",
+      "inScope": "In scope",
+      "outOfScope": "Out of scope",
+      "none": "—",
+      "riskAreas": "Risk areas",
+      "breaking": "Breaking",
+      "unresolvedTitle": "Not read — {reason}",
+      "reason": {
+        "external_host": "external link, never fetched",
+        "other_repo": "another repository",
+        "not_found": "not found",
+        "no_github_token": "no GitHub token configured",
+        "ext_not_allowed": "file type not allowed",
+        "unsafe_path": "unsafe path",
+        "limit": "over the limit"
+      }
+    }
   },
   "findingsTab": {
     "cancel": "Cancel",

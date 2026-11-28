@@ -9,6 +9,7 @@ Never edit or delete entries; correct with a new dated `supersedes …` entry.
 
 ## What Doesn't Work
 <!-- dead ends and antipatterns, with why — the most valuable section -->
+- 2026-11-28 — `wrapUntrusted` escaped only the exact `</untrusted>`, so `</UNTRUSTED>`, `</untrusted >` and a forged `<untrusted source=…>` opener passed through → escape any `<\s*\/?\s*untrusted` case-insensitively (`replace(/<(\s*\/?\s*untrusted)/gi, '<\\$1')`); keep the server intent-domain copy in step (evidence: reviewer-core/src/prompt.ts#wrapUntrusted, server/src/modules/intent/domain.ts#wrapUntrusted)
 
 ## Codebase Patterns
 <!-- conventions and architecture decisions, with the reason -->

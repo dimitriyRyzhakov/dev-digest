@@ -68,6 +68,12 @@ cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docke
 cd server && pnpm exec vitest run .it.test                      # integration, needs Docker
 cd server && pnpm test                                          # both
 
+# agent guards + catalog invariants (read-only agents are guarded)
+node --test '.claude/agents/hooks/*.test.mjs'                    # from the repo root
+
+# M3 intent layer, live model (opt-in, ~$0.001 per run, writes pr_intent)
+cd server && pnpm intent:smoke <prId> [--fresh]                 # checks model, payload, specs, log, block
+
 # browser e2e (needs the full stack + agent-browser CLI)
 ./scripts/dev.sh
 npm i -g agent-browser && agent-browser install

@@ -135,4 +135,46 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('M3: passes the resolved intent into every chunk (map-reduce) and the assembly', async () => {
+    const users: string[] = [];
+    const llm = new MockLLMProvider('openai', { structured: { ...fixture, findings: [] } });
+    const original = llm.completeStructured.bind(llm);
+    llm.completeStructured = async (req) => {
+      users.push(req.messages[1]!.content);
+      return original(req);
+    };
+    const diff = await new MockGitClient({
+      diff:
+        'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,2 @@\n a\n+b\n' +
+        'diff --git a/b.ts b/b.ts\n--- a/b.ts\n+++ b/b.ts\n@@ -1,1 +1,2 @@\n a\n+c\n',
+    }).diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+      intent: {
+        category: 'fix',
+        summary: 'Fixes a race in the limiter.',
+        inScope: ['limiter'],
+        outOfScope: [],
+        breaking: false,
+        confidenceLevel: 'high',
+        documented: true,
+      },
+    });
+    expect(outcome.mode).toBe('map-reduce');
+    expect(users).toHaveLength(2);
+    expect(users.every((u) => u.includes('<untrusted source="pr-intent">'))).toBe(true);
+    expect(outcome.assembly.intent).toContain('Summary: Fixes a race in the limiter.');
+  });
+
+  it('M3: without intent the assembly has intent = null', async () => {
+    const llm = new MockLLMProvider('openai', { structured: fixture });
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm });
+    expect(outcome.assembly.intent).toBeNull();
+  });
 });

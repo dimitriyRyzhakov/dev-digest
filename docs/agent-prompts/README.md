@@ -53,12 +53,21 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
+## PR intent             (M3: derived from PR text; trusted rule + hint lines, derived text untrusted)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
 ## Callers of changed symbols  (untrusted, repo-derived)
 ## Diff to review        (untrusted)
 ```
+
+`## PR intent` is a machine-derived summary of what the PR says it does (category, scope lists,
+risk areas), built by the server's intent pre-step and rendered by `renderIntentBlock`
+(`reviewer-core/src/prompt.ts`). Its text sits inside `<untrusted source="pr-intent">`. A trusted
+line outside the wrap tells the model that intent never reduces, waives or descopes a finding, so
+critical issues outside the stated scope keep full severity; low and medium confidence add a
+trusted hint line. You do not need to mention intent in your agent prompt. See
+[`reviewer-core/README.md`](../../reviewer-core/README.md#pr-intent-m3).
 
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
 in `<untrusted source="…">…</untrusted>` so the model can tell instructions

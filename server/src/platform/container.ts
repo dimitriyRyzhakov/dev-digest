@@ -40,6 +40,13 @@ import {
   getFeatureModelOverride,
 } from '../modules/settings/feature-models.js';
 import { readContainedFile } from './contained-read.js';
+import { IntentRepository } from '../modules/intent/repository.js';
+import { IntentService } from '../modules/intent/service.js';
+import { SmartDiffRepository } from '../modules/smart-diff/repository.js';
+import { SmartDiffService } from '../modules/smart-diff/service.js';
+
+/** Classifier timeout for the review pre-step (M3); a slow model never blocks a review long. */
+const INTENT_TIMEOUT_MS = 20_000;
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -90,6 +97,8 @@ export class Container {
   private _skillArchive?: SkillArchiveReader;
   private _skillsService?: SkillsService;
   private _conventionsService?: ConventionsService;
+  private _intentService?: IntentService;
+  private _smartDiffService?: SmartDiffService;
   private _priceBook?: PriceBook;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
@@ -167,6 +176,26 @@ export class Container {
         defaultFeatureModel('conventions'),
       llm: (provider) => this.llm(provider),
     }));
+  }
+
+  /** PR intent use cases (M3): the review pre-step + `GET /pulls/:id/intent`. */
+  get intentService(): IntentService {
+    return (this._intentService ??= new IntentService({
+      store: new IntentRepository(this.db),
+      github: () => this.github(),
+      showFile: (repo, sha, path, opts) => this.git.showFile(repo, sha, path, opts),
+      readFile: readContainedFile,
+      resolveModel: async (workspaceId) =>
+        (await getFeatureModelOverride(this, workspaceId, 'review_intent')) ??
+        defaultFeatureModel('review_intent'),
+      llm: (provider) => this.llm(provider),
+      timeoutMs: INTENT_TIMEOUT_MS,
+    }));
+  }
+
+  /** Smart Diff (M3): `GET /pulls/:id/smart-diff`, deterministic, no model call. */
+  get smartDiffService(): SmartDiffService {
+    return (this._smartDiffService ??= new SmartDiffService({ store: new SmartDiffRepository(this.db) }));
   }
 
   /** Token counter (js-tiktoken) for the repo-map budget search. */

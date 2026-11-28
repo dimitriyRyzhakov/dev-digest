@@ -90,3 +90,37 @@ describe("M2 per-skill blocks in Prompt assembly", () => {
     expect(screen.getByText("Skills (dynamic)")).toBeInTheDocument();
   });
 });
+
+describe("M3 PR intent in the trace", () => {
+  it("shows the Intent config row, the spec read and the intent prompt block", () => {
+    const trace: RunTrace = {
+      ...TRACE,
+      specs_read: ["specs/M3-x.md"],
+      prompt_assembly: { ...TRACE.prompt_assembly, intent: "## PR intent (derived from PR text — untrusted)\nCategory: feat" },
+      intent: {
+        category: "feat",
+        confidence: 0.62,
+        confidence_level: "medium",
+        breaking: false,
+        summary: "Adds rate limiting.",
+        cached: true,
+        sources: [],
+        unresolved_refs: [],
+      },
+    };
+    renderWithIntl(<TraceBody trace={trace} findings={[]} />);
+    expect(screen.getByText("Intent")).toBeInTheDocument();
+    expect(screen.getByText("feat · medium · cached")).toBeInTheDocument();
+    expect(screen.getByText("specs/M3-x.md")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("PR intent — derived (dynamic)")).toBeInTheDocument();
+  });
+
+  it("renders a legacy (pre-M3) trace without the intent row or block", () => {
+    renderWithIntl(<TraceBody trace={TRACE} findings={[]} />);
+    expect(screen.queryByText("Intent")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.queryByText("PR intent — derived (dynamic)")).not.toBeInTheDocument();
+    expect(screen.getByText("User / diff (dynamic)")).toBeInTheDocument();
+  });
+});

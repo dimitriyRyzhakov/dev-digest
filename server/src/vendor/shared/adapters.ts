@@ -224,6 +224,13 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Contained read of a regular file's blob at commit `sha` (M3 spec reads).
+   * `path` is repo-relative; absolute paths, `..`, NUL, a leading `-`, any
+   * `.git` segment, symlinks / submodules and blobs over `maxBytes` (default
+   * 64 KB) are refused. Returns `null` on ANY refusal or failure; never throws.
+   */
+  showFile(repo: RepoRef, sha: string, path: string, opts?: { maxBytes?: number }): Promise<string | null>;
   clonePathFor(repo: RepoRef): string;
 }
 

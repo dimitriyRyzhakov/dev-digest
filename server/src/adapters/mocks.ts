@@ -249,6 +249,8 @@ export interface MockGitOptions {
   head?: string;
   /** Head `currentHead()` returns AFTER `sync()` runs — simulates fetch+reset advancing HEAD. */
   syncedHead?: string;
+  /** Blob contents `showFile(repo, sha, path)` returns, keyed by path (any sha). */
+  filesAtSha?: Record<string, string>;
 }
 
 export class MockGitClient implements GitClient {
@@ -292,6 +294,11 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  public shown: { sha: string; path: string }[] = [];
+  async showFile(_repo: RepoRef, sha: string, path: string): Promise<string | null> {
+    this.shown.push({ sha, path });
+    return this.opts.filesAtSha?.[path] ?? null;
   }
 }
 

@@ -8,11 +8,13 @@ import { api, API_BASE } from "@/lib/api";
 import { notify } from "@/lib/toast";
 import type {
   FindingActionKind,
+  PrIntentResponse,
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
   RunEvent,
   RunSummary,
+  SmartDiffResponse,
 } from "@devdigest/shared";
 
 /** Query keys for reviews / runs / PR comments — the only place these arrays are spelled. */
@@ -21,7 +23,29 @@ export const reviewKeys = {
   activeRuns: (prId: string | null | undefined) => ["pr-active-runs", prId] as const,
   runs: (prId: string | null | undefined) => ["pr-runs", prId] as const,
   comments: (prId: string | null | undefined) => ["pr-comments", prId] as const,
+  intent: (prId: string | null | undefined) => ["pr-intent", prId] as const,
+  smartDiff: (prId: string | null | undefined) => ["pr-smart-diff", prId] as const,
 };
+
+// ---- Smart Diff (M3) — reviewer-ordered file groups, model-free ----
+/** The PR's files grouped by role (core → tests → wiring → docs → boilerplate). */
+export function usePrSmartDiff(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: reviewKeys.smartDiff(prId),
+    queryFn: () => api.get<SmartDiffResponse>(`/pulls/${prId}/smart-diff`),
+    enabled: !!prId,
+  });
+}
+
+// ---- PR intent (M3) — derived by the review pre-step ----
+/** The PR's cached intent; `{ intent: null }` until a review run derived one. */
+export function usePrIntent(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: reviewKeys.intent(prId),
+    queryFn: () => api.get<PrIntentResponse>(`/pulls/${prId}/intent`),
+    enabled: !!prId,
+  });
+}
 
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
@@ -161,9 +185,39 @@ export function usePrRunsRefresh(prId: string | null | undefined) {
       reviews: () => {
         if (prId) qc.invalidateQueries({ queryKey: reviewKeys.list(prId) });
       },
+      intent: () => {
+        if (prId) qc.invalidateQueries({ queryKey: reviewKeys.intent(prId) });
+      },
     }),
     [qc, prId],
   );
+}
+
+/**
+ * Refresh the PR's review data when its in-flight runs settle (active count
+ * goes from >0 to 0): reviews, run history, intent and Smart Diff
+ * (`finding_lines`), so a tab that isn't streaming the run (Files changed)
+ * still updates without a reload. Mount once per screen that shows them.
+ */
+export function useRefreshOnRunsSettled(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  const { data: activeRuns } = usePrActiveRuns(prId);
+  const active = activeRuns?.length ?? 0;
+  const prev = React.useRef(active);
+
+  React.useEffect(() => {
+    const was = prev.current;
+    prev.current = active;
+    if (!prId || was === 0 || active > 0) return;
+    for (const queryKey of [
+      reviewKeys.list(prId),
+      reviewKeys.runs(prId),
+      reviewKeys.intent(prId),
+      reviewKeys.smartDiff(prId),
+    ]) {
+      qc.invalidateQueries({ queryKey });
+    }
+  }, [active, prId, qc]);
 }
 
 // ---- Finding actions (accept/dismiss) ----

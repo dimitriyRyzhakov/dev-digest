@@ -34,6 +34,17 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               {trace.config.provider ?? "—"}
             </span>
           </Row>
+          {trace.intent != null && (
+            <Row label={t("trace.config.intent")}>
+              <span className="mono">
+                {t("trace.config.intentValue", {
+                  category: trace.intent.category,
+                  level: trace.intent.confidence_level,
+                  mode: t(trace.intent.cached ? "trace.config.intentCached" : "trace.config.intentFresh"),
+                })}
+              </span>
+            </Row>
+          )}
           <Row label={t("trace.config.memoryPulled")}>
             <span>{t("trace.config.items", { count: trace.memory_pulled.length })}</span>
           </Row>
@@ -79,6 +90,9 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         )}
         {trace.prompt_assembly.skill_blocks != null && trace.prompt_assembly.skill_blocks.length > 0 && (
           <SkillBlocks blocks={trace.prompt_assembly.skill_blocks} />
+        )}
+        {trace.prompt_assembly.intent != null && (
+          <PromptBlock label={t("trace.prompt.intent")} text={trace.prompt_assembly.intent} color={PROMPT_COLORS.intent} />
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
