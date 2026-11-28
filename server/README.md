@@ -178,3 +178,7 @@ hermetic:
 
 A DB-backed test (one that imports `test/helpers/pg.ts`) **must** use the
 `*.it.test.ts` suffix so the split stays correct. See [`../TESTING.md`](../TESTING.md).
+
+## Pagination helper
+`paginate(items, page, pageSize?)` in `src/modules/_shared/pagination.ts` slices an in-memory
+list into one page (`page` is 1-based, default page size 50). Exported from `modules/_shared/index.ts`.
